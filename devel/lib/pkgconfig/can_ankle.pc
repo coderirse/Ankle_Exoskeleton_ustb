@@ -1,0 +1,8 @@
+prefix=/home/user/ankle_ws/devel
+
+Name: can_ankle
+Description: Description of can_ankle
+Version: 0.0.0
+Cflags: -I/home/user/ankle_ws/devel/include -I/home/user/ankle_ws/src/can_ankle/include
+Libs: -L${prefix}/lib 
+Requires: geometry_msgs roscpp std_msgs message_runtime

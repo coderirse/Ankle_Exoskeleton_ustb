@@ -1,0 +1,17 @@
+<launch>
+    <!-- 启动电机控制节点，并使用不同的控制台 -->
+    <node name="can_ankleControl_node" pkg="can_ankle" type="can_ankleControl_node" output="screen" launch-prefix="xterm -e">
+        <param name="roslaunch_args" value="--screen" />
+    </node>
+
+    <!-- 启动serial_ForceSensor_node节点，并使用不同的控制台 -->
+    <node name="serial_ForceSensor_node" pkg="can_ankle" type="serial_ForceSensor_node" output="screen" launch-prefix="xterm -e">
+        <param name="roslaunch_args" value="--screen" />
+    </node>
+
+    <!-- 启动serial_encoder_node节点，并使用不同的控制台 -->
+    <node name="serial_encoder_node" pkg="can_ankle" type="serial_encoder_node" output="screen" launch-prefix="xterm -e">
+        <param name="roslaunch_args" value="--screen" />
+    </node>
+</launch>
+

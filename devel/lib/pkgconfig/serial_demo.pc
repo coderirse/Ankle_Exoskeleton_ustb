@@ -1,0 +1,8 @@
+prefix=/home/user/ankle_ws/devel
+
+Name: serial_demo
+Description: Description of serial_demo
+Version: 0.0.0
+Cflags: 
+Libs: -L${prefix}/lib 
+Requires: 

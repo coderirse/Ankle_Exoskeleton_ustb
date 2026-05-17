@@ -1,0 +1,26 @@
+{
+  "configurations": [
+    {
+      "browse": {
+        "databaseFilename": "${default}",
+        "limitSymbolsToIncludedHeaders": false
+      },
+      "includePath": [
+        "/home/user/ankle_ws/devel/include/**",
+        "/opt/ros/melodic/include/**",
+        "/home/user/ankle_ws/src/can_ankle/include/**",
+        "/home/user/ankle_ws/src/fdilink_ahrs/include/**",
+        "/home/user/ankle_ws/src/serial_demo/include/**",
+        "/usr/include/**",
+         "/home/user/ankle_ws/src/can_ankle/src/**",
+         "/home/user/ankle_ws/devel/include/can_ankle/Torque.h"
+      ],
+      "name": "ROS",
+      "intelliSenseMode": "gcc-x64",
+      "compilerPath": "/usr/bin/gcc",
+      "cStandard": "c11",
+      "cppStandard": "gnu++14"
+    }
+  ],
+  "version": 4
+}

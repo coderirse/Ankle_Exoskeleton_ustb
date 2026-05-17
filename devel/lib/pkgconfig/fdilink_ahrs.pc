@@ -1,0 +1,8 @@
+prefix=/home/user/ankle_ws/devel
+
+Name: fdilink_ahrs
+Description: Description of fdilink_ahrs
+Version: 0.0.0
+Cflags: 
+Libs: -L${prefix}/lib 
+Requires: nav_msgs roscpp rospy sensor_msgs serial std_msgs tf message_runtime

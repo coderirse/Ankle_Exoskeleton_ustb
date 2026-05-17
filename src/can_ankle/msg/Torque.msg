@@ -1,0 +1,7 @@
+float64 TorqueValue
+float64 ReturnTorqueValue
+float64 VelocityValue
+float64 ReturnVelocity
+float64 PDvelocity
+float32 ForceSensortorque
+
