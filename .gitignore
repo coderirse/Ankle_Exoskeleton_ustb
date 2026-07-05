@@ -1,0 +1,16 @@
+# colcon build artifacts
+build/
+install/
+log/
+
+# Python
+__pycache__/
+*.pyc
+
+# IDE / local config
+.vscode/
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db

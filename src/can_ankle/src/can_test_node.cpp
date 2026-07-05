@@ -1,7 +1,7 @@
-#include "/home/user/ankle_ws/devel/include/can_ankle/Torque.h"
+#include "can_ankle/msg/torque.hpp"
 #include "can_ankle/can_ankle_node.h"
 #include "can_ankle/controlcan.h"
-#include "/home/user/ankle_ws/devel/include/can_ankle/ForceSensor.h"
+
 
 // 参数宏定义
 uint8_t pendingCommand = 0;      // 等待执行的指令
@@ -101,7 +101,7 @@ void signalHandler(int signum)
   SendData(config_node, 0x00000253, cfg.para_motor2); // 停止电机
   usleep(200000);
   VCI_CloseDevice(VCI_USBCAN2, 0);
-  ros::shutdown();
+  rclcpp::shutdown();
   exit(0);
 }
 
@@ -125,19 +125,19 @@ vector<uint8_t> speed_to_command(double speed)
 
 int main(int argc, char **argv)
 {
-  ros::init(argc, argv, "can_ankle_node");
-  ros::NodeHandle nh;
-  ros::Publisher torque_pub = nh.advertise<can_ankle::Torque>("torque_info", 10); //发布各项信息
+  rclcpp::init(argc, argv);
+  auto node = rclcpp::Node::make_shared("nh");
+  auto torque_pub = node->create_publisher<can_ankle::msg::Torque>("torque_info", 10); //发布各项信息
 
   //初始化can节点
   Init_Can();
-  ros::Rate loop_rate(200);
+  rclcpp::WallRate loop_rate(std::chrono::milliseconds(5));
   signal(SIGINT, signalHandler);
   steady_clock::time_point start_time;
   //发送指令
-  while (ros::ok())
+  while (rclcpp::ok())
   {
-    ros::spinOnce();
+    rclcpp::spin_some(node);
     loop_rate.sleep();
     velocity_output[0] = 0x03;
     velocity_output[1] = 0x00;
@@ -159,11 +159,11 @@ int main(int argc, char **argv)
 
     //发布消息
     velocity_value = y;
-    can_ankle::Torque torque_msg;
-    torque_msg.VelocityValue = velocity_value;
-    torque_msg.ReturnVelocity = Output_VelocityValue;
-    torque_msg.ReturnTorqueValue = Output_TorqueValue;
-    torque_pub.publish(torque_msg);
+    can_ankle::msg::Torque torque_msg;
+    torque_msg.velocity_value = velocity_value;
+    torque_msg.return_velocity = Output_VelocityValue;
+    torque_msg.return_torque_value = Output_TorqueValue;
+    torque_pub->publish(torque_msg);
     //发送速度指令
     velocity_output[1] = byte0;
     velocity_output[2] = byte1;
@@ -348,31 +348,34 @@ void Init_Can(void)
  
   if (VCI_OpenDevice(VCI_USBCAN2, 0, 0) != 1)
   {
-    ROS_ERROR_STREAM("Open CAN deivice error!");
+    RCLCPP_ERROR_STREAM(rclcpp::get_logger("ankle"), "Open CAN deivice error!");
     exit(1);
   }
-  ROS_INFO_STREAM("CAN connected!");
+  RCLCPP_INFO_STREAM(rclcpp::get_logger("ankle"), "CAN connected!");
 
-  config.AccCode = 0x80000000;
+  config.AccCode = 0x80000008;
   config.AccMask = 0xffffffff;
   config.Filter = 1;
   config.Mode = 0;
   config.Timing0 = 0x00;
-  config.Timing1 = 0x1C; // 500k波特率
+  config.Timing1 = 0x14; // 1M波特率
 
+  VCI_ResetCAN(VCI_USBCAN2, 0, 0);
+  usleep(50000);
+  VCI_ClearBuffer(VCI_USBCAN2, 0, 0);
   if (VCI_InitCAN(VCI_USBCAN2, 0, 0, &config) != 1)
   {
-    ROS_ERROR_STREAM("Init CAN error!");
+    RCLCPP_ERROR_STREAM(rclcpp::get_logger("ankle"), "Init CAN error!");
     VCI_CloseDevice(VCI_USBCAN2, 0);
   }
 
   if (VCI_StartCAN(VCI_USBCAN2, 0, 0) != 1)
   {
-    ROS_ERROR_STREAM("Start CAN error!");
+    RCLCPP_ERROR_STREAM(rclcpp::get_logger("ankle"), "Start CAN error!");
     VCI_CloseDevice(VCI_USBCAN2, 0);
   }
 
-  ROS_INFO_STREAM("CAN started!");
+  RCLCPP_INFO_STREAM(rclcpp::get_logger("ankle"), "CAN started!");
 
   // 初始化设置
   usleep(100000);
@@ -384,14 +387,14 @@ void Init_Can(void)
 
 void *receive_func(void *param)
 {
-  ROS_INFO_STREAM("Start CAN recieve....");
+  RCLCPP_INFO_STREAM(rclcpp::get_logger("ankle"), "Start CAN recieve....");
   usleep(20000);
   int reclen = 0;
   VCI_CAN_OBJ rec[200]; // 接收长度
   int *run = (int *)param;
   int ind=((*run)>>2);
   int i,j;
-  while (ros::ok())
+  while (rclcpp::ok())
   { 
     //调用接收函数，有数据则进行处理，接收长度200，等待0ms
     if ((reclen = VCI_Receive(VCI_USBCAN2, 0 , ind , rec, 200 , 0)) >= 0) 
@@ -467,7 +470,7 @@ void SendData(VCI_CAN_OBJ &handle_obj, const int id, const BYTE *data)
   }
   else
   {
-    ROS_ERROR_STREAM("Error initializing!");
+    RCLCPP_ERROR_STREAM(rclcpp::get_logger("ankle"), "Error initializing!");
   }
 }
 
@@ -486,6 +489,6 @@ void SendData_five(VCI_CAN_OBJ &handle_obj, const int id, const BYTE *data)
   }
   else
   {
-    ROS_ERROR_STREAM("Error initializing!");
+    RCLCPP_ERROR_STREAM(rclcpp::get_logger("ankle"), "Error initializing!");
   }
 }

@@ -1,5 +1,5 @@
-#include "/home/user/ankle_ws/devel/include/can_ankle/Torque.h"
-#include "/home/user/ankle_ws/devel/include/can_ankle/ForceSensor.h"
+#include "can_ankle/msg/torque.hpp"
+
 #include "can_ankle/can_ankle_node.h"
 #include "can_ankle/controlcan.h"
 
@@ -7,12 +7,7 @@
 uint8_t pendingCommand = 0;      // 等待执行的指令
 const double RETURN_TORQUE = 0.8;        // 归零扭矩(绝对值)
 
-//clamp函数
-template<typename T>
-const T& clamp(const T& value , const T& low , const T& high) 
-{
-  return (value < low) ? low : ((value > high) ? high : value);
-}
+// using std::clamp from <algorithm>
 
 //状态变量
 class state_parameter
@@ -145,7 +140,7 @@ struct PDController
         double error = setpoint - measurement;
         double derivative = Output_VelocityValue;
         double output = Kp * error  - Kd * derivative;
-        output = clamp(output, -max_output, max_output); // 输出限幅
+        output = std::clamp(output, -max_output, max_output); // 输出限幅
         
         prev_error = error;
         return output;
@@ -189,14 +184,14 @@ void processHoming()
         BYTE return_data[8] = {0x7F, 0xFF, 0x7F, 0xF0, 0x07, 0xFF,static_cast<BYTE>((TransformValue >> 8) & 0xFF), static_cast<BYTE>(TransformValue & 0xFF)};
         SendData(send_motor_torque, 0x00000001, return_data);
         usleep(50000);
-        while(abs(Enc.Encoder_Value - Enc.initialEncoderValue) < 3 && ros::ok()) 
+        while(abs(Enc.Encoder_Value - Enc.initialEncoderValue) < 3 && rclcpp::ok()) 
         {   // 关闭流程
             SendData(send_motor_torque, 0x00000001, config_motor3);
             usleep(200000);
             SendData(send_motor_torque, 0x00000001, config_motor2);
             usleep(200000);
             VCI_CloseDevice(VCI_USBCAN2, 0);
-            ros::shutdown();
+            rclcpp::shutdown();
             SendData(send_motor_torque, 0x00000001, return_data);
             usleep(50000);
         }
@@ -204,7 +199,7 @@ void processHoming()
 }
 
 //编码器回调函数，接收关节角度信息
-void encoderCallback(const std_msgs::Float64::ConstPtr& msg)
+void encoderCallback(const std_msgs::msg::Float64::SharedPtr msg)
 {
     double receive_angle = msg->data;
     // 角度规范化
@@ -214,27 +209,27 @@ void encoderCallback(const std_msgs::Float64::ConstPtr& msg)
     if(!ST.initialEncoderRecorded)
     {
         Enc.initialEncoderValue = Enc.Encoder_Value;
-        ROS_INFO("Initial encoder position: %.2f\n", Enc.initialEncoderValue);
+        RCLCPP_INFO(rclcpp::get_logger("ankle"), "Initial encoder position: %.2f\n", Enc.initialEncoderValue);
         ST.initialEncoderRecorded = true;
     }
     // 安全限制检查
     if(abs(Enc.Encoder_Value) > Enc.ENCODER_SAFE_LIMIT) 
     {
-        ROS_ERROR("Encoder value %.2f exceeds safety limit! Triggering emergency return.", Enc.Encoder_Value);
+        RCLCPP_ERROR(rclcpp::get_logger("ankle"), "Encoder value %.2f exceeds safety limit! Triggering emergency return.", Enc.Encoder_Value);
         signalHandler(SIGINT); // 触发归零程序
     }
     Enc.position_angle = Enc.Encoder_Value;
 }
 
 //力传感器回调函数，接收力传感器返回值
-void torqueCallback(const std_msgs::Float32::ConstPtr& msg)
+void torqueCallback(const std_msgs::msg::Float32::SharedPtr msg)
 {
     float forcevalue = msg->data;
     SensorTorque = forcevalue * 0.018 ;
 }
 
 //imu数据存储函数
-void extractImuData(const sensor_msgs::Imu::ConstPtr& msg)
+void extractImuData(const sensor_msgs::msg::Imu::SharedPtr msg)
 {
     IMU.imu_orientation_w = msg->orientation.w;
     IMU.imu_orientation_x = msg->orientation.x;
@@ -251,10 +246,10 @@ void extractImuData(const sensor_msgs::Imu::ConstPtr& msg)
 }
 
 //imu回调函数
-void imuCallback(const sensor_msgs::Imu::ConstPtr& msg)
+void imuCallback(const sensor_msgs::msg::Imu::SharedPtr msg)
 {
     extractImuData(msg);
-    ROS_INFO_THROTTLE(1,"IMU Data Received");
+    RCLCPP_INFO(rclcpp::get_logger("ankle"), "IMU Data Received");
 }
 
 //补偿扭矩输出函数
@@ -292,7 +287,7 @@ void updateCompensateTorque(encoder_parameter& Enc , Torque_parameter&  Tor)
         Tor.CompensateTorque = b * -0.8;
     }
 
-    ROS_INFO("Compensation torque set to: %f", Tor.CompensateTorque);
+    RCLCPP_INFO(rclcpp::get_logger("ankle"), "Compensation torque set to: %f", Tor.CompensateTorque);
 }
 
 //发送扭矩指令函数
@@ -372,7 +367,7 @@ void sendVelocityCommand(double y, double kd)
 }
 
 // 指令回调函数，处理接收到的状态指令
-void commandCallback(const std_msgs::UInt8::ConstPtr& msg) 
+void commandCallback(const std_msgs::msg::UInt8::SharedPtr msg) 
 {
     uint8_t command = msg->data;
     switch (command) 
@@ -398,13 +393,13 @@ void commandCallback(const std_msgs::UInt8::ConstPtr& msg)
 //主函数（can通讯/状态机/发送消息）
 int main(int argc, char **argv)
 {
-  ros::init(argc, argv, "can_ankle_node");
-  ros::NodeHandle nh;
-  ros::Publisher torque_pub = nh.advertise<can_ankle::Torque>("torque_info", 10); //发布各项信息
-  ros::Subscriber command_sub = nh.subscribe("command_topic", 10, commandCallback); // 订阅开关指令
-  ros::Subscriber encoder_sub = nh.subscribe("angle", 10, encoderCallback); //订阅关节角度值
-  ros::Subscriber forcesensor_sub = nh.subscribe("Force", 10, torqueCallback); //订阅力传感器值
-  ros::Subscriber imu_sub = nh.subscribe("imu", 10, imuCallback); //订阅imu传感器值
+  rclcpp::init(argc, argv);
+  auto node = rclcpp::Node::make_shared("nh");
+  auto torque_pub = node->create_publisher<can_ankle::msg::Torque>("torque_info", 10); //发布各项信息
+  auto command_sub = node->create_subscription<std_msgs::msg::UInt8>("command_topic", 10, commandCallback); // 订阅开关指令
+  auto encoder_sub = node->create_subscription<std_msgs::msg::Float64>("angle", 10, encoderCallback); //订阅关节角度值
+  auto forcesensor_sub = node->create_subscription<std_msgs::msg::Float32>("Force", 10, torqueCallback); //订阅力传感器值
+  auto imu_sub = node->create_subscription<sensor_msgs::msg::Imu>("imu", 10, imuCallback); //订阅imu传感器值
 
   //设置机械零位
   //SendData(send_motor_torque, 0x00000001, config_motor4);
@@ -419,13 +414,13 @@ int main(int argc, char **argv)
   cin>>kd;
   //double r_kp=8.192*kp;
   //int intr_kp = static_cast<int>(r_kp);
-  ros::Rate loop_rate(200);
+  rclcpp::WallRate loop_rate(std::chrono::milliseconds(5));
   signal(SIGINT, signalHandler);
 
   //发送指令
-  while (ros::ok())
+  while (rclcpp::ok())
   {
-    ros::spinOnce();
+    rclcpp::spin_some(node);
     processHoming(); //检查是否需要归零位
     loop_rate.sleep();
     /*cout<<"请输入电机的扭矩值："<<endl;
@@ -495,14 +490,14 @@ int main(int argc, char **argv)
         SendData(send_motor_torque, 0x00000001, config_motor3);
     }
     //发布消息
-    can_ankle::Torque torque_msg;
-    torque_msg.VelocityValue = y; //期望转速
-    torque_msg.ReturnVelocity = Output_VelocityValue; //实际返回转速
-    torque_msg.TorqueValue = torque;         // 目标扭矩
-    torque_msg.ReturnTorqueValue = Output_TorqueValue; // 实际返回扭矩
-    torque_msg.PDvelocity = adjusted_velocity; // PD输出速度
-    torque_msg.ForceSensortorque = SensorTorque; //力传感器真实扭矩
-    torque_pub.publish(torque_msg);
+    can_ankle::msg::Torque torque_msg;
+    torque_msg.velocity_value = y; //期望转速
+    torque_msg.return_velocity = Output_VelocityValue; //实际返回转速
+    torque_msg.torque_value = torque;         // 目标扭矩
+    torque_msg.return_torque_value = Output_TorqueValue; // 实际返回扭矩
+    torque_msg.pdvelocity = adjusted_velocity; // PD输出速度
+    torque_msg.force_sensortorque = SensorTorque; //力传感器真实扭矩
+    torque_pub->publish(torque_msg);
     }
 }
 
@@ -513,31 +508,34 @@ void Init_Can(void)
   int m_run0 = 1; //线程创建参数
   if (VCI_OpenDevice(VCI_USBCAN2, 0, 0) != 1)
   {
-    ROS_ERROR_STREAM("Open CAN deivice error!");
+    RCLCPP_ERROR_STREAM(rclcpp::get_logger("ankle"), "Open CAN deivice error!");
     exit(1);
   }
-  ROS_INFO_STREAM("CAN connected!");
+  RCLCPP_INFO_STREAM(rclcpp::get_logger("ankle"), "CAN connected!");
 
-  config.AccCode = 0;
+  config.AccCode = 0x80000008;
   config.AccMask = 0xffffffff;
   config.Filter = 2;
   config.Mode = 0;
   config.Timing0 = 0x00;
   config.Timing1 = 0x14; // 1M波特率
 
+  VCI_ResetCAN(VCI_USBCAN2, 0, 0);
+  usleep(50000);
+  VCI_ClearBuffer(VCI_USBCAN2, 0, 0);
   if (VCI_InitCAN(VCI_USBCAN2, 0, 0, &config) != 1)
   {
-    ROS_ERROR_STREAM("Init CAN error!");
+    RCLCPP_ERROR_STREAM(rclcpp::get_logger("ankle"), "Init CAN error!");
     VCI_CloseDevice(VCI_USBCAN2, 0);
   }
 
   if (VCI_StartCAN(VCI_USBCAN2, 0, 0) != 1)
   {
-    ROS_ERROR_STREAM("Start CAN error!");
+    RCLCPP_ERROR_STREAM(rclcpp::get_logger("ankle"), "Start CAN error!");
     VCI_CloseDevice(VCI_USBCAN2, 0);
   }
 
-  ROS_INFO_STREAM("CAN started!");
+  RCLCPP_INFO_STREAM(rclcpp::get_logger("ankle"), "CAN started!");
 
   // 初始化设置
   SendData(config_node, 0x00000001, config_motor1);
@@ -545,20 +543,20 @@ void Init_Can(void)
   ret = pthread_create(&threadid, NULL, receive_func, &m_run0);
   if(ret != 0)
   {
-    ROS_ERROR("创建线程失败！");
+    RCLCPP_ERROR(rclcpp::get_logger("ankle"), "创建线程失败！");
   }
 }
 
 void *receive_func(void *param)
 {
-  ROS_INFO_STREAM("Start CAN recieve....");
+  RCLCPP_INFO_STREAM(rclcpp::get_logger("ankle"), "Start CAN recieve....");
   usleep(20000);
   int reclen = 0;
   VCI_CAN_OBJ rec[2]; // 接收长度
   int *run = (int *)param;
   int ind=((*run)>>2);
   int i,j;
-  while (ros::ok())
+  while (rclcpp::ok())
   { 
     //调用接收函数，有数据则进行处理，接收长度2，等待10ms
     if ((reclen = VCI_Receive(VCI_USBCAN2, 0 , ind , rec, 2 , 10)) >= 0) 
@@ -620,7 +618,7 @@ void SendData(VCI_CAN_OBJ &handle_obj, const int id, const BYTE *data)
   }
   else
   {
-    ROS_ERROR_STREAM("Error initializing!");
+    RCLCPP_ERROR_STREAM(rclcpp::get_logger("ankle"), "Error initializing!");
   }
 }
 

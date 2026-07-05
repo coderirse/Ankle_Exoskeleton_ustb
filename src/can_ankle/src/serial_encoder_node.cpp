@@ -1,76 +1,84 @@
-#include<ros/ros.h>
-#include "can_ankle/can_ankle_node.h"
-#include "can_ankle/controlcan.h"
+#include <rclcpp/rclcpp.hpp>
+#include <std_msgs/msg/float64.hpp>
+#include <serial/serial.h>
+#include <cstdint>
+#include <cstring>
+#include <iostream>
+#include <signal.h>
+#include <unistd.h>
 
-// 实例化串口对象
 serial::Serial ser;
+
 void signalHandler(int signum)
 {
-  cout << "close" << endl;
-  usleep(100000); // 等待0.1秒 
-  ros::shutdown();
+    std::cout << "close" << std::endl;
+    usleep(100000);
+    rclcpp::shutdown();
 }
+
 int main(int argc, char** argv)
 {
-    ros::init(argc, argv, "serial_encoder_node");
-    ros::NodeHandle nh;
-    ros::Publisher angle_pub = nh.advertise<std_msgs::Float64>("angle", 100);
-    ros::Rate loop_rate(200);
-    signal(SIGINT,signalHandler);
-    // 打开串口
+    rclcpp::init(argc, argv);
+    auto node = rclcpp::Node::make_shared("serial_encoder_node");
+    auto angle_pub = node->create_publisher<std_msgs::msg::Float64>("angle", 100);
+    rclcpp::WallRate loop_rate(std::chrono::milliseconds(5)); // 200 Hz
+    signal(SIGINT, signalHandler);
+
+    // Open serial port
     try
     {
-        ser.setPort("/dev/ttyUSB0");  // 设置串口设备路径
-        ser.setBaudrate(9600);  // 设置波特率
-        serial::Timeout timeout = serial::Timeout::simpleTimeout(1000);  // 设置超时时间
+        ser.setPort("/dev/ttyCH341USB0");
+        ser.setBaudrate(9600);
+        ser.setBytesize(serial::eightbits);
+        ser.setParity(serial::parity_none);
+        ser.setStopbits(serial::stopbits_one);
+        serial::Timeout timeout = serial::Timeout::simpleTimeout(1000);
         ser.setTimeout(timeout);
-        ser.open();  // 打开串口
+        ser.open();
     }
     catch (serial::IOException& e)
     {
-        ROS_ERROR_STREAM("无法打开串口: " << e.what());
+        RCLCPP_ERROR_STREAM(node->get_logger(), "无法打开串口: " << e.what());
         return -1;
     }
-    //判断串口是否成功打开
-    if( ser.isOpen() )
+
+    if (ser.isOpen())
     {
-        while(ros::ok())
+        RCLCPP_INFO_STREAM(node->get_logger(), "Serial Port initialized (Modbus RTU, 9600)");
+
+        while (rclcpp::ok())
         {
-            ROS_INFO_STREAM("Serial Port initialized. \n");         //成功打开串口，打印信息
-	       /* uint8_t zerodata[8] = {0x01, 0x06, 0x00, 0x08, 0x00, 0x01, 0xC9, 0xC8};
-	        ser.write(zerodata,8);//置零
-	        cout<<"以当前位置为零点"<<endl;*/
+            // Modbus RTU request: read holding register 0x0000, 1 register
             uint8_t senddata[8] = {0x01, 0x03, 0x00, 0x00, 0x00, 0x01, 0x84, 0x0A};
-            ser.write(senddata,8); //向串口发送数据
-            usleep(1000); // 等待1毫秒
+            ser.write(senddata, 8);
+            usleep(1000);
+
             uint8_t receivedata[7] = {0};
             ser.read(receivedata, 7);
-            // 取出有效数据位 将第三位左移动8位，将第四放在高16位上
+
+            // Extract angle from response bytes [3] and [4]
             uint16_t combined_value = (receivedata[3] << 8) | receivedata[4];
-            // 转换数据格式
-            double encodervalue = static_cast<double>(combined_value) * 360.0f / 32768.0f;
+            double encodervalue = static_cast<double>(combined_value) * 360.0 / 32768.0;
             if (encodervalue > 200)
             {
                 encodervalue = encodervalue - 360;
             }
-            // 打印角度
+
             printf("编码器关节角度: %.2f\n", encodervalue);
-            // 循环等待回调函数
-            //back_pub.publish(combined_value); 
-            std_msgs::Float64 msg;
+
+            auto msg = std_msgs::msg::Float64();
             msg.data = encodervalue;
-            angle_pub.publish(msg);
-            ros::spinOnce();
+            angle_pub->publish(msg);
+
+            rclcpp::spin_some(node);
             loop_rate.sleep();
         }
-        return 0;
-        // 关闭串口
+
         ser.close();
-    }    
+        return 0;
+    }
     else
     {
         return -1;
     }
 }
-
-

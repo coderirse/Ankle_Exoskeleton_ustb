@@ -1,53 +1,62 @@
-﻿#include <ros/ros.h>
-#include <sensor_msgs/Imu.h>
-#include <tf/transform_broadcaster.h>
+#include <rclcpp/rclcpp.hpp>
+#include <sensor_msgs/msg/imu.hpp>
+#include <tf2_ros/transform_broadcaster.h>
+#include <geometry_msgs/msg/transform_stamped.hpp>
 #include <string>
 
+class ImuTfBroadcaster : public rclcpp::Node
+{
+public:
+  ImuTfBroadcaster() : Node("imu_data_to_tf")
+  {
+    this->declare_parameter("imu_topic", std::string("/imu"));
+    this->declare_parameter("world_frame_id", std::string("/world"));
+    this->declare_parameter("imu_frame_id", std::string("/gyro_link"));
+    this->declare_parameter("position_x", 0);
+    this->declare_parameter("position_y", 0);
+    this->declare_parameter("position_z", 0);
 
-/* 参考ROS wiki
- * http://wiki.ros.org/tf/Tutorials/Writing%20a%20tf%20broadcaster%20%28C%2B%2B%29
- * */
+    imu_topic_ = this->get_parameter("imu_topic").as_string();
+    world_frame_id_ = this->get_parameter("world_frame_id").as_string();
+    imu_frame_id_ = this->get_parameter("imu_frame_id").as_string();
+    position_x_ = this->get_parameter("position_x").as_int();
+    position_y_ = this->get_parameter("position_y").as_int();
+    position_z_ = this->get_parameter("position_z").as_int();
 
-int position_x ;
-int position_y ;
-int position_z ;
-std::string imu_frame_id, world_frame_id;
+    tf_broadcaster_ = std::make_shared<tf2_ros::TransformBroadcaster>(*this);
+    imu_sub_ = this->create_subscription<sensor_msgs::msg::Imu>(
+        imu_topic_, 10,
+        std::bind(&ImuTfBroadcaster::imuCallback, this, std::placeholders::_1));
+  }
 
-void ImuCallback(const sensor_msgs::ImuConstPtr& imu_data) {
-    static tf::TransformBroadcaster br;//广播器
-    tf::Transform transform;
-    transform.setOrigin(tf::Vector3(position_x, position_y, position_z));//设置平移部分
+private:
+  void imuCallback(const sensor_msgs::msg::Imu::SharedPtr imu_data)
+  {
+    geometry_msgs::msg::TransformStamped transform;
+    transform.header.stamp = this->get_clock()->now();
+    transform.header.frame_id = world_frame_id_;
+    transform.child_frame_id = imu_frame_id_;
+    transform.transform.translation.x = position_x_;
+    transform.transform.translation.y = position_y_;
+    transform.transform.translation.z = position_z_;
+    transform.transform.rotation.x = imu_data->orientation.x;
+    transform.transform.rotation.y = imu_data->orientation.y;
+    transform.transform.rotation.z = imu_data->orientation.z;
+    transform.transform.rotation.w = imu_data->orientation.w;
+    tf_broadcaster_->sendTransform(transform);
+  }
 
-    //从IMU消息包中获取四元数数据
-    tf::Quaternion q;
-    q.setX(imu_data->orientation.x);
-    q.setY(imu_data->orientation.y);
-    q.setZ(imu_data->orientation.z);
-    q.setW(imu_data->orientation.w);
-    q.normalized();//归一化
+  std::string imu_topic_, world_frame_id_, imu_frame_id_;
+  int position_x_, position_y_, position_z_;
+  std::shared_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
+  rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imu_sub_;
+};
 
-    transform.setRotation(q);//设置旋转部分
-    //广播出去
-    br.sendTransform(tf::StampedTransform(transform, ros::Time::now(), world_frame_id, imu_frame_id));
-}
-int main (int argc, char ** argv) {
-    ros::init(argc, argv, "imu_data_to_tf");
-    
-    
-    ros::NodeHandle node;
-
-    std::string imu_topic;
-    
-    node.param("/imu_tf/imu_topic", imu_topic, std::string("/imu"));
-    node.param("/imu_tf/position_x", position_x, 0);
-    node.param("/imu_tf/position_y", position_y, 0);
-    node.param("/imu_tf/position_z", position_z, 0);
-    node.param("/imu_tf/world_frame_id", world_frame_id, std::string("/world"));
-    node.param("/imu_tf/imu_frame_id", imu_frame_id, std::string("/imu"));
-
-    
-    ros::Subscriber sub = node.subscribe(imu_topic.c_str(), 10, &ImuCallback);
-
-    ros::spin();
-    return 0;
+int main(int argc, char **argv)
+{
+  rclcpp::init(argc, argv);
+  auto node = std::make_shared<ImuTfBroadcaster>();
+  rclcpp::spin(node);
+  rclcpp::shutdown();
+  return 0;
 }
