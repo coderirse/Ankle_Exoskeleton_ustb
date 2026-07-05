@@ -1,143 +1,283 @@
 #include "can_ankle/msg/torque.hpp"
 #include "can_ankle/can_ankle_node.h"
-#include "can_ankle/controlcan.h"
+// controlcan.h replaced by can subprocess in header
 
-double currentY = 0.0;
-bool isDriving = false;
-bool isForward = true;
-bool isSwitchDelay = false;
-bool isWaitingForward = false;
-double Encoder_Value = 0;
-uint8_t pendingCommand = 0;
-double initialEncoderValue = 0;
-std::atomic<bool> isReturningHome{false};
-const double RETURN_TORQUE = 1.0;
-const int ENCODER_SAFE_LIMIT = 45;
-const double ENCODER_FORWARD = 8;
-const double DRIVE_DURATION = 1.25;
-const double DELAY_DURATION = 0.2;
-time_point<high_resolution_clock> delayStartTime;
-
-rclcpp::Node::SharedPtr g_node_vel;
+// 参数宏定义
+double currentY = 0.0; // 用于存储当前的y值
+bool isDriving = false; // 用于标记是否在驱动状态
+bool isForward = true; // 用于标记是否正转
+bool isSwitchDelay = false; // 标记是否处于转换延时阶段
+bool isWaitingForward = false;  //  标记是否在等待正转条件
+double x = 0.0; //总时间
+double y = 0.0; //速度驱动函数
+double Encoder_Value = 0; //编码器角度值
+uint8_t pendingCommand = 0;      // 等待执行的指令
+double initialEncoderValue = 0;       // 初始编码器位置
+std::atomic<bool> isReturningHome{false}; // 归零状态标志
+const double RETURN_TORQUE = 1.0;        // 归零扭矩(绝对值)
+const int ENCODER_SAFE_LIMIT = 45;      // 编码器安全阈值
+const double  ENCODER_FORWARD = 8;  //电机正转编码器限定值
+const double DRIVE_DURATION = 1.25; // 正弦半周期持续时间 1.25秒 (π/(0.8π) = 1.25)
+const double DELAY_DURATION = 0.2; //延时0.2s
+time_point<high_resolution_clock> startTime; // 节点开始运行的时间
+time_point<high_resolution_clock> delayStartTime;   // 延时开始时间
 
 class Timer {
 public:
     Timer() : lastCommandTime(high_resolution_clock::now()) {}
-    void startNewTiming() { lock_guard<mutex> lock(mutex_); lastCommandTime = high_resolution_clock::now(); }
-    double getElapsedTime() { lock_guard<mutex> lock(mutex_); return duration_cast<duration<double>>(high_resolution_clock::now() - lastCommandTime).count(); }
+
+    void startNewTiming() {
+        lock_guard<mutex> lock(mutex_);
+        lastCommandTime = high_resolution_clock::now();
+    }
+
+    double getElapsedTime() {
+        lock_guard<mutex> lock(mutex_);
+        auto now = high_resolution_clock::now();
+        return duration_cast<duration<double>>(now - lastCommandTime).count();
+    }
+
 private:
     time_point<high_resolution_clock> lastCommandTime;
     mutable mutex mutex_;
 };
+
 Timer timer;
 
-void signalHandler(int signum) {
+void signalHandler(int signum)
+{
   cout << "启动归零程序..." << endl;
   isReturningHome = true;
+  
+  // 发送归零速度指令
   double return_torque = (initialEncoderValue > Encoder_Value) ? RETURN_TORQUE : -RETURN_TORQUE;
-  uint16_t tv = (return_torque - T_min)/((T_max - T_min)/4096);
-  BYTE rd[8] = {0x7F,0xFF,0x7F,0xF0,0x07,0xFF,(BYTE)((tv>>8)&0xFF),(BYTE)(tv&0xFF)};
-  while(abs(Encoder_Value - initialEncoderValue) > 1 && rclcpp::ok()) { SendData(send_motor_torque,0x00000001,rd); usleep(50000); }
+  uint16_t TransformValue = (return_torque - T_min)/((T_max - T_min)/4096);
+  
+  BYTE return_data[8] = {0x7F, 0xFF, 0x7F, 0xF0, 0x07, 0xFF,static_cast<BYTE>((TransformValue >> 8) & 0xFF), static_cast<BYTE>(TransformValue & 0xFF)};
+  
+  // 持续发送直到到达初始位置
+  while(abs(Encoder_Value - initialEncoderValue) > 1 && rclcpp::ok()) 
+  {
+    SendData(send_motor_torque, 0x00000001, return_data);
+    usleep(50000); // 50ms周期
+  }
+
+  // 归零完成后关闭
   cout << "归零完成，关闭节点" << endl;
-  SendData(send_motor_torque,0x00000001,config_motor3); usleep(200000);
-  VCI_CloseDevice(VCI_USBCAN2,0); rclcpp::shutdown(); exit(0);
+  SendData(send_motor_torque, 0x00000001, config_motor3); // 停止电机
+  usleep(200000);
+  rclcpp::shutdown();
+  exit(0);
 }
 
+// 指令回调函数，处理接收到的指令消息
 void commandCallback(const std_msgs::msg::UInt8::SharedPtr msg) {
-    uint8_t cmd = msg->data;
-    switch(cmd){
+    uint8_t command = msg->data;
+    switch (command) {
         case 0x41:
-            if(isDriving && !isForward) pendingCommand=0x41;
-            else if(!isDriving && !isSwitchDelay){ if(Encoder_Value>ENCODER_FORWARD){ isDriving=true; isForward=true; timer.startNewTiming(); } else { isWaitingForward=true; RCLCPP_WARN(g_node_vel->get_logger(),"等待编码器>8°: %.1f",Encoder_Value); } }
-            else if(isSwitchDelay) pendingCommand=0x41;
+            if (isDriving && !isForward) 
+            {  // 反转中收到正转指令
+                pendingCommand = 0x41;
+            } 
+            else if (!isDriving && !isSwitchDelay) 
+            {
+                // 启动前检查编码器值
+                if (Encoder_Value > ENCODER_FORWARD) 
+                {
+                    isDriving = true;
+                    isForward = true;
+                    timer.startNewTiming();
+                } 
+                else 
+                {
+                    isWaitingForward = true;
+                    RCLCPP_WARN(rclcpp::get_logger("ankle"), "Encoder value %d ≤8°, waiting for >8° to start forward.", Encoder_Value);
+                }
+            } 
+            else if (isSwitchDelay) 
+            {
+                pendingCommand = 0x41;  // 允许延时期间接收指令
+            }
             break;
+
         case 0x42:
-            if(isDriving && isForward) pendingCommand=0x42;
-            else if(!isDriving && !isSwitchDelay){ isDriving=true; isForward=false; timer.startNewTiming(); }
-            else if(isSwitchDelay) pendingCommand=0x42;
+             if (isDriving && isForward) 
+             {  // 正转中收到反转指令
+                pendingCommand = 0x42;
+            } 
+            else if (!isDriving && !isSwitchDelay) 
+            {
+                isDriving = true;
+                isForward = false;
+                timer.startNewTiming();
+            } 
+            else if (isSwitchDelay) 
+            {
+                pendingCommand = 0x42;  // 允许延时期间接收指令
+            }
             break;
     }
 }
 
-void encoderCallback(const std_msgs::msg::Float64::SharedPtr msg) {
-    double a = msg->data; if(a>300) a-=360; Encoder_Value=a;
-    if(abs(Encoder_Value)>ENCODER_SAFE_LIMIT && !isReturningHome){ RCLCPP_ERROR(g_node_vel->get_logger(),"编码器超限: %.1f",Encoder_Value); signalHandler(SIGINT); }
+void encoderCallback(const std_msgs::msg::Float64::SharedPtr msg)
+{
+    double receive_angle = msg->data;
+    
+    // 角度规范化
+    if(receive_angle > 300) receive_angle -= 360;
+    Encoder_Value = receive_angle;
+
+    // 安全限制检查
+    if(abs(Encoder_Value) > ENCODER_SAFE_LIMIT && !isReturningHome) 
+    {
+        RCLCPP_ERROR(rclcpp::get_logger("ankle"), "Encoder value %d exceeds safety limit! Triggering emergency return.", Encoder_Value);
+        signalHandler(SIGINT); // 触发归零程序
+    }
 }
 
-int main(int argc, char **argv) {
-  rclcpp::init(argc,argv);
-  auto node = rclcpp::Node::make_shared("can_ankle_velocity"); g_node_vel=node;
-  auto torque_pub = node->create_publisher<can_ankle::msg::Torque>("torque_info",10);
-  auto command_sub = node->create_subscription<std_msgs::msg::UInt8>("command_topic",10,commandCallback);
-  auto encoder_sub = node->create_subscription<std_msgs::msg::Float64>("angle",10,encoderCallback);
+int main(int argc, char **argv)
+{
+  rclcpp::init(argc, argv);
+  auto node = rclcpp::Node::make_shared("ankle_node");
+  auto torque_pub = node->create_publisher<can_ankle::msg::Torque>("torque_info", 10); //发布各项信息
 
-  Init_Can(); usleep(500000);
+  //初始化can节点
+  Init_Can();
+  //记录起始编码器的数值
+  usleep(500000); // 等待500ms确保编码器数据稳定
   initialEncoderValue = Encoder_Value;
-  RCLCPP_INFO(g_node_vel->get_logger(),"初始编码器: %.1f",initialEncoderValue);
+  RCLCPP_INFO(rclcpp::get_logger("ankle"), "Initial encoder position: %d", initialEncoderValue);
+  //设置当前时间为起始时间
+  auto start_time = chrono::high_resolution_clock::now();
+  //输入kp、kd值并换算成指令
+  //cout<<"请输入Kp:"<<endl;
+  //cin>> kp;
+  cout<<"请输入Kd:"<<endl;
+  cin>>kd;
+  //double r_kp=8.192*kp;
+  double r_kd = 819.2*kd;
+  int intr_kd = static_cast<int>(r_kd);
+  //int intr_kp = static_cast<int>(r_kp);
+  rclcpp::WallRate loop_rate(std::chrono::milliseconds(5));  // 200Hz
+  signal(SIGINT, signalHandler);
+  //发送指令
+  while (rclcpp::ok())
+  {
+    rclcpp::spin_some(node);
+    loop_rate.sleep();
+    output[0]=0x7F;
+    output[1]=0xFF;
+    output[2]=0x7F;
+    output[3]=0xF0;
+    output[4]=0x00;
+    output[5]=0x00;
+    output[6]=0x07;
+    output[7]=0xFF;
+    /*cout<<"请输入电机的扭矩值："<<endl;
+    cin>>torque_value;
+    if (torque_value>T_max || torque_value<T_min)
+    {  
+        cout<<"输入有误"<<endl;
+    }*/
 
-  cout<<"请输入Kd:"<<endl; cin>>kd;
-  double r_kd=819.2*kd; int intr_kd=(int)r_kd;
-  rclcpp::WallRate loop_rate(std::chrono::milliseconds(5));
-  signal(SIGINT,signalHandler);
+    double y = 0.0;
 
-  while(rclcpp::ok()){
-    rclcpp::spin_some(node); loop_rate.sleep();
-    output[0]=0x7F;output[1]=0xFF;output[2]=0x7F;output[3]=0xF0;output[4]=0x00;output[5]=0x00;output[6]=0x07;output[7]=0xFF;
-    double y=0.0;
-
-    if(isDriving){
-        double elapsed=timer.getElapsedTime();
-        if(isForward){ y=5*sin(0.8*M_PI*elapsed); if(elapsed>=DRIVE_DURATION){ isDriving=false; y=0; if(pendingCommand){ isSwitchDelay=true; delayStartTime=high_resolution_clock::now(); } else isForward=false; } }
-        else { y=-5*sin(0.8*M_PI*elapsed); if(elapsed>=DRIVE_DURATION){ isDriving=false; y=0; if(pendingCommand){ isSwitchDelay=true; delayStartTime=high_resolution_clock::now(); } } }
-    } else if(isWaitingForward){
-        if(Encoder_Value>ENCODER_FORWARD){ isWaitingForward=false; isDriving=true; isForward=true; timer.startNewTiming(); RCLCPP_INFO(g_node_vel->get_logger(),"开始正转"); }
-    } else if(isSwitchDelay){
-        if(duration_cast<duration<double>>(high_resolution_clock::now()-delayStartTime).count()>=DELAY_DURATION){ isSwitchDelay=false; isDriving=true; isForward=(pendingCommand==0x41); pendingCommand=0; timer.startNewTiming(); }
+    // 状态机核心
+    if (isDriving) 
+    {
+        if (isForward) 
+        {
+            double elapsed = timer.getElapsedTime();
+            y = 5 * sin(0.8 * M_PI * elapsed);
+            if (elapsed >= DRIVE_DURATION) 
+            {
+                isDriving = false;
+                y = 0;
+                if (pendingCommand != 0) 
+                {
+                    isSwitchDelay = true;
+                    delayStartTime = high_resolution_clock::now();
+                } 
+                else 
+                {
+                    isForward = false;  // 重置方向状态
+                }
+            }
+        } 
+        else 
+        {
+            double elapsed = timer.getElapsedTime();
+            y = -5 * sin(0.8 * M_PI * elapsed);
+            if (elapsed >= DRIVE_DURATION) 
+            {
+                isDriving = false;
+                y = 0;
+                if (pendingCommand != 0) 
+                {
+                    isSwitchDelay = true;
+                    delayStartTime = high_resolution_clock::now();
+                }
+            }
+        }
     }
 
-    velocity_value=y;
-    auto torque_msg=can_ankle::msg::Torque();
-    torque_msg.velocity_value=velocity_value; torque_msg.return_velocity=Output_VelocityValue; torque_msg.return_torque_value=Output_TorqueValue;
+    else if (isWaitingForward) 
+    {  //等待编码器条件
+        if (Encoder_Value > ENCODER_FORWARD) 
+        {
+            // 条件满足，启动正转
+            isWaitingForward = false;
+            isDriving = true;
+            isForward = true;
+            timer.startNewTiming();
+            RCLCPP_INFO(rclcpp::get_logger("ankle"), "编码器值已超过8°,开始正转");
+        } 
+        else 
+        {
+            // 持续等待
+            RCLCPP_INFO(rclcpp::get_logger("ankle"), "等待编码器值超过8°,当前值: %d", Encoder_Value);
+        }
+    }
+
+    else if (isSwitchDelay) 
+    {
+        auto now = high_resolution_clock::now();
+        duration<double> elapsed = now - delayStartTime;
+        if (elapsed.count() >= DELAY_DURATION) 
+        {
+            isSwitchDelay = false;
+            isDriving = true;
+            isForward = (pendingCommand == 0x41);  // 切换方向
+            pendingCommand = 0;                    // 清除标记
+            timer.startNewTiming();
+        }
+    }
+
+    cout<<fixed<<setprecision(3)<<"at time"<<x<<"seconds,y="<<y<<endl;
+    //发布消息
+    velocity_value = y;
+    can_ankle::msg::Torque torque_msg;
+    torque_msg.velocity_value = velocity_value;
+    torque_msg.return_velocity = Output_VelocityValue;
+    torque_msg.return_torque_value = Output_TorqueValue;
     torque_pub->publish(torque_msg);
-
-    uint16_t tv=(velocity_value-V_min)/((V_max-V_min)/4096);
-    output[2]=(uint16_t)((tv>>4)&0xFF); output[3]&=0x0F; uint8_t lf=(uint8_t)(tv&0xFF); lf=lf<<4; output[3]|=lf;
-    output[5]=(uint16_t)((intr_kd>>4)&0xFF); output[6]=(uint16_t)((intr_kd&0x0F)<<4|0x07);
-    BYTE vd[8]={(BYTE)output[0],(BYTE)output[1],(BYTE)output[2],(BYTE)output[3],(BYTE)output[4],(BYTE)output[5],(BYTE)output[6],(BYTE)output[7]};
-    SendData(send_motor_torque,0x00000001,vd);
+    //把驱动函数换算成指令
+    uint16_t TransformValue = (velocity_value-V_min)/((V_max-V_min)/4096);
+    cout<<hex<<TransformValue<<endl;
+    cout<<hex<<intr_kd<<endl;
+    //cout<<hex<<intr_kp<<endl;
+    //发送速度指令
+    output[2] = static_cast<uint16_t>((TransformValue >> 4) & 0xFF);
+    output[3] &= 0x0F;
+    uint8_t lowFourBits = static_cast<uint16_t>((TransformValue) & 0xFF);
+    lowFourBits =  lowFourBits << 4;
+    output[3] |=  lowFourBits;
+    //发送kd指令
+    output[5] = static_cast<uint16_t>((intr_kd >> 4) & 0xFF);
+    output[6] = static_cast<uint16_t>((intr_kd & 0x0F) << 4 | 0x07);
+    //发送can指令
+    BYTE velocity_data[8] = {output[0],output[1],output[2],output[3],output[4],output[5],output[6],output[7]};
+    cout<<"发出的指令："<<"["<<output[0]<<"],["<<output[1]<<"],["<<output[2]<<"],["<<output[3]<<"],["<<output[4]<<"],["<<output[5]<<"],["<<output[6]<<"],["<<output[7]<<"]"<<endl;
+    SendData(send_motor_torque, 0x00000001, velocity_data);
   }
-  rclcpp::shutdown(); return 0;
-}
-
-void Init_Can(void){
-  int ret, m_run0=1;
-  if(VCI_OpenDevice(VCI_USBCAN2,0,0)!=1){ RCLCPP_ERROR_STREAM(g_node_vel->get_logger(),"Open CAN error!"); exit(1); }
-  RCLCPP_INFO_STREAM(g_node_vel->get_logger(),"CAN connected!");
-  config.AccCode=0x80000008; config.AccMask=0xffffffff; config.Filter=2; config.Mode=0; config.Timing0=0x00; config.Timing1=0x14;
-  VCI_ResetCAN(VCI_USBCAN2,0,0); usleep(50000); VCI_ClearBuffer(VCI_USBCAN2,0,0);
-  if(VCI_InitCAN(VCI_USBCAN2,0,0,&config)!=1){ RCLCPP_ERROR_STREAM(g_node_vel->get_logger(),"Init CAN error!"); VCI_CloseDevice(VCI_USBCAN2,0); }
-  if(VCI_StartCAN(VCI_USBCAN2,0,0)!=1){ RCLCPP_ERROR_STREAM(g_node_vel->get_logger(),"Start CAN error!"); VCI_CloseDevice(VCI_USBCAN2,0); }
-  RCLCPP_INFO_STREAM(g_node_vel->get_logger(),"CAN started!");
-  SendData(config_node,0x00000001,config_motor1); usleep(100000);
-  ret=pthread_create(&threadid,NULL,receive_func,&m_run0);
-}
-
-void *receive_func(void *param){
-  usleep(20000); int reclen=0; VCI_CAN_OBJ rec[2]; int *run=(int*)param; int ind=((*run)>>2); int i,j;
-  while(rclcpp::ok()){
-    if((reclen=VCI_Receive(VCI_USBCAN2,0,ind,rec,2,10))>=0){
-      for(j=0;j<reclen;j++){
-        uint32_t rv=rec[j].Data[3],rv_t=rec[j].Data[4],v_r=rv_t&0xF0,t_r=rv_t&0x0F,rt=rec[j].Data[5],current=(t_r<<8)|rt;
-        uint32_t rvh=(rv>>4)&0xF,rvl=rv&0xF,realV=(rvh<<8)|(rvl<<4)|(v_r&0xF);
-        Output_VelocityValue=(realV*(V_max-V_min)/4096)+V_min;
-        Output_TorqueValue=((current*(T_max-T_min)/4096)+T_min)+(Output_VelocityValue-velocity_value)*kd;
-      }
-    }
-  }
-  return NULL;
-}
-
-void SendData(VCI_CAN_OBJ &h, const int id, const BYTE *d){
-  h.ID=id; h.RemoteFlag=0; h.ExternFlag=0; h.DataLen=8; memcpy(h.Data,d,8);
-  if(VCI_Transmit(VCI_USBCAN2,0,0,&h,1)<=0) RCLCPP_ERROR_STREAM(rclcpp::get_logger("can_send"),"Error!");
 }

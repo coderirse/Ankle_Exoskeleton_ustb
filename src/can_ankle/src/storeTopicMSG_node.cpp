@@ -2,107 +2,39 @@
 #include <std_msgs/msg/float64.hpp>
 #include <fstream>
 #include <sstream>
-#include <signal.h>
 #include <chrono>
-#include <atomic>
+#include <signal.h>
 
 std::atomic<bool> is_running{true};
+void sigHandler(int) { is_running = false; rclcpp::shutdown(); }
 
-void signalHandler(int signum)
-{
-    is_running = false;
-    rclcpp::shutdown();
-}
-
-void writeTimeToFile(const std_msgs::msg::Float64::SharedPtr msg, const std::string& phase_name)
-{
+void writeFile(const std::string& s) {
     if (!is_running) return;
-    std::ofstream file;
-    file.open("time_data.txt", std::ios::app);
-    if (file.is_open())
-    {
-        std::ostringstream oss;
-        auto now = std::chrono::steady_clock::now();
-        oss << now.time_since_epoch().count() << "," << phase_name << "时间: " << msg->data << " 秒" << std::endl;
-        file << oss.str();
-        file.close();
-    }
+    std::ofstream f("time_data.txt", std::ios::app);
+    if (f.is_open()) f << std::chrono::steady_clock::now().time_since_epoch().count() << "," << s << std::endl;
 }
 
-void writeVelocityToFile(double result, const std::string& phase_name)
-{
-    if (!is_running) return;
-    std::ofstream file;
-    file.open("time_data.txt", std::ios::app);
-    if (file.is_open())
-    {
-        std::ostringstream oss;
-        auto now = std::chrono::steady_clock::now();
-        oss << now.time_since_epoch().count() << "," << phase_name << "：" << result << std::endl;
-        file << oss.str();
-        file.close();
-    }
+static void onesupport(const std_msgs::msg::Float64::SharedPtr m) { writeFile("支撑相1: " + std::to_string(m->data)); }
+static void twosupport(const std_msgs::msg::Float64::SharedPtr m) {
+    writeFile("支撑相2: " + std::to_string(m->data));
+    double a=1.45022, b=0.469537, c=0.06345;
+    double pace = log(a/(m->data-c)) / b;
+    writeFile("步速: " + std::to_string(pace));
 }
+static void threesupport(const std_msgs::msg::Float64::SharedPtr m) { writeFile("支撑相3: " + std::to_string(m->data)); }
+static void fullsupport(const std_msgs::msg::Float64::SharedPtr m) { writeFile("支撑相总计: " + std::to_string(m->data)); }
+static void swing(const std_msgs::msg::Float64::SharedPtr m) { writeFile("摆动相: " + std::to_string(m->data)); }
 
-class TimeDataSubscriber : public rclcpp::Node
-{
-public:
-    TimeDataSubscriber() : Node("storeTopicMSG_node")
-    {
-        one_support_sub_ = this->create_subscription<std_msgs::msg::Float64>(
-            "one_support_time", 10,
-            [this](const std_msgs::msg::Float64::SharedPtr msg) {
-                writeTimeToFile(msg, "支撑相阶段1");
-            });
-
-        two_support_sub_ = this->create_subscription<std_msgs::msg::Float64>(
-            "two_support_time", 10,
-            [this](const std_msgs::msg::Float64::SharedPtr msg) {
-                writeTimeToFile(msg, "支撑相阶段2");
-                const double a1 = 1.45022;
-                const double b1 = 0.469537;
-                const double c1 = 0.06345;
-                double i1 = a1 / (msg->data - c1);
-                double j1 = log(i1) / b1;
-                double realpace = j1;
-                writeVelocityToFile(realpace, "解算得到的步速");
-            });
-
-        three_support_sub_ = this->create_subscription<std_msgs::msg::Float64>(
-            "three_support_time", 10,
-            [this](const std_msgs::msg::Float64::SharedPtr msg) {
-                writeTimeToFile(msg, "支撑相阶段3");
-            });
-
-        swing_sub_ = this->create_subscription<std_msgs::msg::Float64>(
-            "swing_time", 10,
-            [this](const std_msgs::msg::Float64::SharedPtr msg) {
-                writeTimeToFile(msg, "摆动相时间");
-            });
-
-        support_sub_ = this->create_subscription<std_msgs::msg::Float64>(
-            "support_time", 10,
-            [this](const std_msgs::msg::Float64::SharedPtr msg) {
-                writeTimeToFile(msg, "支撑相总时间");
-            });
-    }
-
-private:
-    rclcpp::Subscription<std_msgs::msg::Float64>::SharedPtr one_support_sub_;
-    rclcpp::Subscription<std_msgs::msg::Float64>::SharedPtr two_support_sub_;
-    rclcpp::Subscription<std_msgs::msg::Float64>::SharedPtr three_support_sub_;
-    rclcpp::Subscription<std_msgs::msg::Float64>::SharedPtr swing_sub_;
-    rclcpp::Subscription<std_msgs::msg::Float64>::SharedPtr support_sub_;
-};
-
-int main(int argc, char **argv)
-{
+int main(int argc, char** argv) {
     rclcpp::init(argc, argv);
-    signal(SIGINT, signalHandler);
-    auto node = std::make_shared<TimeDataSubscriber>();
-    RCLCPP_INFO(node->get_logger(), "Topic recorder node started, writing to time_data.txt");
+    signal(SIGINT, sigHandler);
+    auto node = rclcpp::Node::make_shared("topic_recorder");
+    auto s1 = node->create_subscription<std_msgs::msg::Float64>("one_support_time", 10, onesupport);
+    auto s2 = node->create_subscription<std_msgs::msg::Float64>("two_support_time", 10, twosupport);
+    auto s3 = node->create_subscription<std_msgs::msg::Float64>("three_support_time", 10, threesupport);
+    auto s4 = node->create_subscription<std_msgs::msg::Float64>("support_time", 10, fullsupport);
+    auto s5 = node->create_subscription<std_msgs::msg::Float64>("swing_time", 10, swing);
     rclcpp::spin(node);
-    RCLCPP_INFO(node->get_logger(), "Topic recorder node shutdown");
     rclcpp::shutdown();
     return 0;
 }

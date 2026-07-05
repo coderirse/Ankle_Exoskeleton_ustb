@@ -6,6 +6,8 @@
 #include <serial/serial.h>
 #include <cstdint>
 #include <cstring>
+#include <iomanip>
+#include <sstream>
 
 serial::Serial ser;
 
@@ -21,64 +23,124 @@ static uint16_t modbus_crc(const uint8_t* data, size_t len) {
     return crc;
 }
 
-void signalHandler(int signum) {
-    std::cout << "close" << std::endl;
-    usleep(4000);
-    rclcpp::shutdown();
+std::string to_hex_string(const uint8_t* data, size_t len) {
+    std::stringstream ss;
+    ss << std::hex << std::setfill('0');
+    for (size_t i = 0; i < len; i++) {
+        ss << std::setw(2) << static_cast<int>(data[i]) << " ";
+    }
+    return ss.str();
 }
 
 int main(int argc, char** argv) {
     rclcpp::init(argc, argv);
-    auto node = rclcpp::Node::make_shared("serial_ForceSensor_node");
+    auto node = std::make_shared<rclcpp::Node>("serial_ForceSensor_node");
+
+    // Declare parameters
+    node->declare_parameter<std::string>("port", "/dev/ttyCH341USB1");
+    node->declare_parameter<int>("baudrate", 19200);
+    node->declare_parameter<int>("slave_id", 1);
+    node->declare_parameter<double>("scale_factor", 0.01);
+    node->declare_parameter<bool>("debug", true);
+
+    std::string port = node->get_parameter("port").as_string();
+    int baudrate = node->get_parameter("baudrate").as_int();
+    int slave_id = node->get_parameter("slave_id").as_int();
+    double scale_factor = node->get_parameter("scale_factor").as_double();
+    bool debug = node->get_parameter("debug").as_bool();
+
     auto force_pub = node->create_publisher<std_msgs::msg::Float32>("Force", 10);
-    rclcpp::WallRate loop_rate(std::chrono::milliseconds(5));
-    signal(SIGINT, signalHandler);
+    rclcpp::WallRate loop_rate(std::chrono::milliseconds(50)); // Set to 20Hz for better Modbus stability
 
     try {
-        ser.setPort("/dev/ttyCH341USB1");
-        ser.setBaudrate(19200);
+        ser.setPort(port);
+        ser.setBaudrate(baudrate);
         ser.setBytesize(serial::eightbits);
         ser.setParity(serial::parity_none);
         ser.setStopbits(serial::stopbits_one);
-        serial::Timeout timeout = serial::Timeout::simpleTimeout(200);
+        serial::Timeout timeout = serial::Timeout::simpleTimeout(100);
         ser.setTimeout(timeout);
         ser.open();
     }
     catch (serial::IOException& e) {
-        RCLCPP_ERROR_STREAM(node->get_logger(), "无法打开串口: " << e.what());
+        RCLCPP_ERROR(node->get_logger(), "无法打开串口 %s: %s", port.c_str(), e.what());
         return -1;
     }
 
-    if (!ser.isOpen()) { RCLCPP_ERROR_STREAM(node->get_logger(), "串口未打开"); return -1; }
-    RCLCPP_INFO_STREAM(node->get_logger(), "Force sensor serial port initialized (Modbus RTU, 19200)");
+    if (!ser.isOpen()) {
+        RCLCPP_ERROR(node->get_logger(), "串口未打开: %s", port.c_str());
+        return -1;
+    }
+    RCLCPP_INFO(node->get_logger(), "Force sensor serial port initialized: %s @ %d", port.c_str(), baudrate);
 
     while (rclcpp::ok()) {
-        uint8_t req[8] = {0x01, 0x03, 0x0F, 0xA0, 0x00, 0x02, 0x00, 0x00};
+        // Build Modbus RTU request: SlaveID 03 0F A0 00 02 CRC_L CRC_H
+        uint8_t req[8] = {static_cast<uint8_t>(slave_id), 0x03, 0x0F, 0xA0, 0x00, 0x02, 0x00, 0x00};
         uint16_t crc = modbus_crc(req, 6);
         req[6] = crc & 0xFF;
-        req[7] = crc >> 8;
+        req[7] = (crc >> 8) & 0xFF;
+
         ser.flushInput();
         ser.write(req, 8);
-        usleep(60000);
+        
+        if (debug) {
+            RCLCPP_DEBUG(node->get_logger(), "TX: %s", to_hex_string(req, 8).c_str());
+        }
+
+        // Wait for response (9 bytes expected)
+        // Slave(1) + Func(1) + Count(1) + Data(4) + CRC(2) = 9 bytes
+        size_t expected_len = 9;
         uint8_t resp[32] = {0};
-        size_t n = ser.available();
-        if (n >= 7) {
-            n = ser.read(resp, n > 31 ? 31 : n);
-            if (n >= 7 && resp[0] == 0x01 && resp[1] == 0x03) {
+        size_t n = 0;
+        
+        // Simple polling for 9 bytes with timeout
+        auto start_time = node->now();
+        while ((node->now() - start_time).seconds() < 0.1) {
+            if (ser.available() >= expected_len) {
+                n = ser.read(resp, expected_len);
+                break;
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        }
+
+        if (n >= expected_len) {
+            if (debug) {
+                RCLCPP_INFO(node->get_logger(), "RX: %s", to_hex_string(resp, n).size() > 0 ? to_hex_string(resp, n).c_str() : "TIMEOUT");
+            }
+            
+            if (resp[0] == slave_id && resp[1] == 0x03 && resp[2] == 0x04) {
                 uint16_t resp_crc = modbus_crc(resp, n - 2);
-                uint16_t expected = resp[n-2] | (resp[n-1] << 8);
-                if (resp_crc == expected) {
-                    int16_t raw = (resp[5] << 8) | resp[6];
-                    float force_n = raw * 0.01f;
+                uint16_t received_crc = resp[n - 2] | (resp[n - 1] << 8);
+                
+                if (resp_crc == received_crc) {
+                    // Force value is in the second register (Reg 0x0FA1)
+                    // resp[3,4] is Reg 0x0FA0, resp[5,6] is Reg 0x0FA1
+                    int16_t raw = (static_cast<int16_t>(resp[5]) << 8) | resp[6];
+                    float force_n = static_cast<float>(raw * scale_factor);
+                    
                     auto msg = std_msgs::msg::Float32();
                     msg.data = force_n;
                     force_pub->publish(msg);
+                    
+                    if (debug) {
+                        RCLCPP_DEBUG(node->get_logger(), "Force: %.2f N (raw: %d)", force_n, raw);
+                    }
+                } else {
+                    RCLCPP_WARN(node->get_logger(), "CRC Error: expected %04X, got %04X", resp_crc, received_crc);
                 }
+            } else {
+                RCLCPP_WARN(node->get_logger(), "Unexpected response header: %02X %02X %02X", resp[0], resp[1], resp[2]);
+            }
+        } else {
+            if (debug) {
+                RCLCPP_INFO(node->get_logger(), "No response from sensor (received %zu bytes)", n);
             }
         }
+
         rclcpp::spin_some(node);
         loop_rate.sleep();
     }
+    
     ser.close();
     rclcpp::shutdown();
     return 0;

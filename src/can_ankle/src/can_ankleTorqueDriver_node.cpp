@@ -1,13 +1,13 @@
 #include "can_ankle/msg/torque.hpp"
 
 #include "can_ankle/can_ankle_node.h"
-#include "can_ankle/controlcan.h"
+// controlcan.h replaced by can subprocess in header
 
 // 参数宏定义
 uint8_t pendingCommand = 0;      // 等待执行的指令
 const double RETURN_TORQUE = 0.8;        // 归零扭矩(绝对值)
 
-// using std::clamp from <algorithm>
+// using std::clamp
 
 //状态变量
 class state_parameter
@@ -190,7 +190,6 @@ void processHoming()
             usleep(200000);
             SendData(send_motor_torque, 0x00000001, config_motor2);
             usleep(200000);
-            VCI_CloseDevice(VCI_USBCAN2, 0);
             rclcpp::shutdown();
             SendData(send_motor_torque, 0x00000001, return_data);
             usleep(50000);
@@ -249,7 +248,7 @@ void extractImuData(const sensor_msgs::msg::Imu::SharedPtr msg)
 void imuCallback(const sensor_msgs::msg::Imu::SharedPtr msg)
 {
     extractImuData(msg);
-    RCLCPP_INFO(rclcpp::get_logger("ankle"), "IMU Data Received");
+    RCLCPP_INFO(rclcpp::get_logger("ankle"),"IMU Data Received");
 }
 
 //补偿扭矩输出函数
@@ -394,12 +393,8 @@ void commandCallback(const std_msgs::msg::UInt8::SharedPtr msg)
 int main(int argc, char **argv)
 {
   rclcpp::init(argc, argv);
-  auto node = rclcpp::Node::make_shared("nh");
+  auto node = rclcpp::Node::make_shared("ankle_node");
   auto torque_pub = node->create_publisher<can_ankle::msg::Torque>("torque_info", 10); //发布各项信息
-  auto command_sub = node->create_subscription<std_msgs::msg::UInt8>("command_topic", 10, commandCallback); // 订阅开关指令
-  auto encoder_sub = node->create_subscription<std_msgs::msg::Float64>("angle", 10, encoderCallback); //订阅关节角度值
-  auto forcesensor_sub = node->create_subscription<std_msgs::msg::Float32>("Force", 10, torqueCallback); //订阅力传感器值
-  auto imu_sub = node->create_subscription<sensor_msgs::msg::Imu>("imu", 10, imuCallback); //订阅imu传感器值
 
   //设置机械零位
   //SendData(send_motor_torque, 0x00000001, config_motor4);
@@ -414,7 +409,7 @@ int main(int argc, char **argv)
   cin>>kd;
   //double r_kp=8.192*kp;
   //int intr_kp = static_cast<int>(r_kp);
-  rclcpp::WallRate loop_rate(std::chrono::milliseconds(5));
+  rclcpp::WallRate loop_rate(std::chrono::milliseconds(5));  // 200Hz
   signal(SIGINT, signalHandler);
 
   //发送指令
@@ -500,128 +495,6 @@ int main(int argc, char **argv)
     torque_pub->publish(torque_msg);
     }
 }
-
-void Init_Can(void)
-{
-  int ret;
-  int i = 0;
-  int m_run0 = 1; //线程创建参数
-  if (VCI_OpenDevice(VCI_USBCAN2, 0, 0) != 1)
-  {
-    RCLCPP_ERROR_STREAM(rclcpp::get_logger("ankle"), "Open CAN deivice error!");
-    exit(1);
-  }
-  RCLCPP_INFO_STREAM(rclcpp::get_logger("ankle"), "CAN connected!");
-
-  config.AccCode = 0x80000008;
-  config.AccMask = 0xffffffff;
-  config.Filter = 2;
-  config.Mode = 0;
-  config.Timing0 = 0x00;
-  config.Timing1 = 0x14; // 1M波特率
-
-  VCI_ResetCAN(VCI_USBCAN2, 0, 0);
-  usleep(50000);
-  VCI_ClearBuffer(VCI_USBCAN2, 0, 0);
-  if (VCI_InitCAN(VCI_USBCAN2, 0, 0, &config) != 1)
-  {
-    RCLCPP_ERROR_STREAM(rclcpp::get_logger("ankle"), "Init CAN error!");
-    VCI_CloseDevice(VCI_USBCAN2, 0);
-  }
-
-  if (VCI_StartCAN(VCI_USBCAN2, 0, 0) != 1)
-  {
-    RCLCPP_ERROR_STREAM(rclcpp::get_logger("ankle"), "Start CAN error!");
-    VCI_CloseDevice(VCI_USBCAN2, 0);
-  }
-
-  RCLCPP_INFO_STREAM(rclcpp::get_logger("ankle"), "CAN started!");
-
-  // 初始化设置
-  SendData(config_node, 0x00000001, config_motor1);
-  usleep(100000);
-  ret = pthread_create(&threadid, NULL, receive_func, &m_run0);
-  if(ret != 0)
-  {
-    RCLCPP_ERROR(rclcpp::get_logger("ankle"), "创建线程失败！");
-  }
-}
-
-void *receive_func(void *param)
-{
-  RCLCPP_INFO_STREAM(rclcpp::get_logger("ankle"), "Start CAN recieve....");
-  usleep(20000);
-  int reclen = 0;
-  VCI_CAN_OBJ rec[2]; // 接收长度
-  int *run = (int *)param;
-  int ind=((*run)>>2);
-  int i,j;
-  while (rclcpp::ok())
-  { 
-    //调用接收函数，有数据则进行处理，接收长度2，等待10ms
-    if ((reclen = VCI_Receive(VCI_USBCAN2, 0 , ind , rec, 2 , 10)) >= 0) 
-    {  
-        for (j = 0; j < reclen; j++) // 逐帧处理
-        {   
-            printf("data:0x");
-            for (i=0 ; i<rec[j].DataLen ; i++)
-            {  
-                printf(" %02X",rec[j].Data[i]); 
-            }
-            printf("\n");
-            uint16_t p1 = rec[j].Data[1];
-            uint16_t p2 = rec[j].Data[2];
-            uint16_t rv = rec[j].Data[3];
-            uint16_t rv_t = rec[j].Data[4];
-            uint16_t v_r = rv_t & 0xF0;
-            uint16_t t_r = rv_t & 0x0F;
-            uint16_t rt = rec[j].Data[5];
-            cout<<"接收:["<<p1<<"],["<<p2<<"],["<<rv<<"],["<<rv_t<<"],["<<rt<<"]"<<endl;
-            uint16_t current = (t_r<<8) | rt;
-            cout<<current<<endl;
-            cout<<dec<<"返回的电流参数:"<<current<<endl;
-            uint16_t rv_high = (rv >> 4) & 0xF;
-            uint16_t rv_low = rv  & 0xF;
-            uint16_t realVelocity = (rv_high << 8) | (rv_low << 4) | (v_r & 0xF);
-            cout<<realVelocity<<endl;
-            cout<<dec<<"返回的速度参数:"<<realVelocity<<endl;
-            uint16_t realPosition = (p1 << 8) | p2;
-            cout<<dec<<"返回的位置参数:"<<current<<endl;
-            double output_position = (realPosition * (P_max-P_min)/65536) + P_min;
-            printf("返回的位置值：%.2f\n", output_position);
-            double output_angle = output_position * 180 / M_PI;
-            Output_Angle = output_angle;
-            printf("返回的角度值：%.2f\n", output_angle);
-		    double output_velocity = (realVelocity * (V_max-V_min)/4096) + V_min;
-            Output_VelocityValue = output_velocity;
-            printf("返回的速度值：%.2f\n", output_velocity);
-            double output_torque = ((current*(T_max-T_min)/4096)+T_min) + (output_velocity-velocity_value)*kd;
-            Output_TorqueValue = output_torque;
-            printf("返回的扭矩值：%.2f\n", output_torque);
-        }  
-    }
-  }
-}
-
-void SendData(VCI_CAN_OBJ &handle_obj, const int id, const BYTE *data)
-{
-  handle_obj.ID = id;
-  handle_obj.RemoteFlag = 0;
-  handle_obj.ExternFlag = 0;
-  handle_obj.DataLen = 8;
-  for (int i = 0; i < handle_obj.DataLen; i++)
-  {
-    handle_obj.Data[i] = data[i];
-  }
-  if (VCI_Transmit(VCI_USBCAN2, 0, 0, &handle_obj, 1) > 0)
-  {
-  }
-  else
-  {
-    RCLCPP_ERROR_STREAM(rclcpp::get_logger("ankle"), "Error initializing!");
-  }
-}
-
 double calculateTargetTorque() 
 {
     double elapsed = timer.getElapsedTime();

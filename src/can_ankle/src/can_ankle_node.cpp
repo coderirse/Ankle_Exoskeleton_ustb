@@ -2,8 +2,6 @@
 #include "/home/user/ankle_ws/devel/include/can_ankle/ForceSensor.h"
 #include "can_ankle/can_ankle_node.h"
 #include "can_ankle/controlcan.h"
-
-
 // 使用原子变量保证线程安全
 atomic<bool> isDriving{false};
 atomic<bool> isForward{true};

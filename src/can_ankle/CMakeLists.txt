@@ -17,7 +17,7 @@ set(SERIAL_INCLUDE_DIR "$ENV{HOME}/.local/include" CACHE PATH "serial include di
 set(SERIAL_LIBRARY "$ENV{HOME}/.local/lib/libserial.a" CACHE FILEPATH "serial library")
 
 if(NOT EXISTS "${SERIAL_INCLUDE_DIR}/serial/serial.h")
-  message(FATAL_ERROR "serial header not found at ${SERIAL_INCLUDE_DIR}/serial/serial.h")
+  message(FATAL_ERROR "serial header not found")
 endif()
 
 rosidl_generate_interfaces(${PROJECT_NAME}
@@ -26,14 +26,12 @@ rosidl_generate_interfaces(${PROJECT_NAME}
 )
 
 include_directories(include ${SERIAL_INCLUDE_DIR})
-link_directories(${CMAKE_CURRENT_SOURCE_DIR}/lib)
 
 macro(add_can_exec name src_file)
-  add_executable(${name} ${src_file})
-  target_link_libraries(${name} ${SERIAL_LIBRARY} controlcan pthread)
+  add_executable(${name} ${src_file} ${ARGN})
+  target_link_libraries(${name} ${SERIAL_LIBRARY} pthread)
   ament_target_dependencies(${name} rclcpp std_msgs geometry_msgs sensor_msgs)
   rosidl_target_interfaces(${name} ${PROJECT_NAME} "rosidl_typesupport_cpp")
-  target_include_directories(${name} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 endmacro()
 
 macro(add_serial_exec name src_file)
@@ -49,7 +47,7 @@ add_can_exec(can_test_node src/can_test_node.cpp)
 add_serial_exec(serial_ForceSensor_node src/serial_ForceSensor_node.cpp)
 add_serial_exec(serial_encoder_node src/serial_encoder_node.cpp)
 add_serial_exec(serial_sendCommand_node src/serial_sendCommand_node.cpp)
-add_can_exec(storeTopicMSG_node src/storeTopicMSG_node.cpp)
+add_serial_exec(storeTopicMSG_node src/storeTopicMSG_node.cpp)
 add_can_exec(storeVelMSG_node src/storeVelMSG_node.cpp)
 
 install(TARGETS

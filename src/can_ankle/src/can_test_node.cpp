@@ -1,7 +1,6 @@
 #include "can_ankle/msg/torque.hpp"
 #include "can_ankle/can_ankle_node.h"
-#include "can_ankle/controlcan.h"
-
+// controlcan.h replaced by can subprocess in header
 
 // 参数宏定义
 uint8_t pendingCommand = 0;      // 等待执行的指令
@@ -100,7 +99,6 @@ void signalHandler(int signum)
   cout << "关闭节点" << endl;
   SendData(config_node, 0x00000253, cfg.para_motor2); // 停止电机
   usleep(200000);
-  VCI_CloseDevice(VCI_USBCAN2, 0);
   rclcpp::shutdown();
   exit(0);
 }
@@ -126,12 +124,14 @@ vector<uint8_t> speed_to_command(double speed)
 int main(int argc, char **argv)
 {
   rclcpp::init(argc, argv);
-  auto node = rclcpp::Node::make_shared("nh");
+  auto node = rclcpp::Node::make_shared("ankle_node");
   auto torque_pub = node->create_publisher<can_ankle::msg::Torque>("torque_info", 10); //发布各项信息
 
   //初始化can节点
   Init_Can();
-  rclcpp::WallRate loop_rate(std::chrono::milliseconds(5));
+  sendMSG();
+  motor_on_V();
+  rclcpp::WallRate loop_rate(std::chrono::milliseconds(5));  // 200Hz
   signal(SIGINT, signalHandler);
   steady_clock::time_point start_time;
   //发送指令
@@ -153,7 +153,7 @@ int main(int argc, char **argv)
     double elapsed = timer.getElapsedTime();
     cout << "经过的时间" << elapsed << endl;
 
-    y = 30 * sin(1 * M_PI * elapsed); //单位是度/s
+    y = 5 * sin(1 * M_PI * elapsed); //单位是度/s
 
     speed_to_command(y);
 
@@ -338,157 +338,4 @@ void motor_on_T()
   usleep(200000);
   cout << "使能完毕" << endl;
   motor_enabled = true;
-}
-
-void Init_Can(void)
-{
-  int ret;
-  int i = 0;
-  int m_run0 = 1;
- 
-  if (VCI_OpenDevice(VCI_USBCAN2, 0, 0) != 1)
-  {
-    RCLCPP_ERROR_STREAM(rclcpp::get_logger("ankle"), "Open CAN deivice error!");
-    exit(1);
-  }
-  RCLCPP_INFO_STREAM(rclcpp::get_logger("ankle"), "CAN connected!");
-
-  config.AccCode = 0x80000008;
-  config.AccMask = 0xffffffff;
-  config.Filter = 1;
-  config.Mode = 0;
-  config.Timing0 = 0x00;
-  config.Timing1 = 0x14; // 1M波特率
-
-  VCI_ResetCAN(VCI_USBCAN2, 0, 0);
-  usleep(50000);
-  VCI_ClearBuffer(VCI_USBCAN2, 0, 0);
-  if (VCI_InitCAN(VCI_USBCAN2, 0, 0, &config) != 1)
-  {
-    RCLCPP_ERROR_STREAM(rclcpp::get_logger("ankle"), "Init CAN error!");
-    VCI_CloseDevice(VCI_USBCAN2, 0);
-  }
-
-  if (VCI_StartCAN(VCI_USBCAN2, 0, 0) != 1)
-  {
-    RCLCPP_ERROR_STREAM(rclcpp::get_logger("ankle"), "Start CAN error!");
-    VCI_CloseDevice(VCI_USBCAN2, 0);
-  }
-
-  RCLCPP_INFO_STREAM(rclcpp::get_logger("ankle"), "CAN started!");
-
-  // 初始化设置
-  usleep(100000);
-  ret = pthread_create(&threadid, NULL, receive_func, &m_run0);
-  sendMSG();
-  //速度模式
-  motor_on_V();
-}
-
-void *receive_func(void *param)
-{
-  RCLCPP_INFO_STREAM(rclcpp::get_logger("ankle"), "Start CAN recieve....");
-  usleep(20000);
-  int reclen = 0;
-  VCI_CAN_OBJ rec[200]; // 接收长度
-  int *run = (int *)param;
-  int ind=((*run)>>2);
-  int i,j;
-  while (rclcpp::ok())
-  { 
-    //调用接收函数，有数据则进行处理，接收长度200，等待0ms
-    if ((reclen = VCI_Receive(VCI_USBCAN2, 0 , ind , rec, 200 , 0)) >= 0) 
-    {  
-      for (j = 0; j < reclen; j++) // 逐帧处理
-      {   
-          if (rec[j].ID == 0x000001D3)
-          {
-            printf("八位数据data:0x");
-            for (i=0 ; i<rec[j].DataLen ; i++)
-            {  
-              printf(" %02X",rec[j].Data[i]); 
-            }
-            printf("\n");
-            uint8_t rt1 = rec[j].Data[2];
-            uint8_t rt2 = rec[j].Data[3];
-            uint8_t rp1 = rec[j].Data[4];
-            uint8_t rp2 = rec[j].Data[5];
-            uint8_t rp3 = rec[j].Data[6];
-            uint8_t rp4 = rec[j].Data[7];
-            uint16_t combined_torque = (rt2 << 8) | rt1;
-            uint32_t combined_position = (rp4 << 24) | (rp3 << 16) | (rp2 << 8) | rp1;
-            int16_t torque_output = static_cast<int16_t>(combined_torque);
-            int32_t position_output = static_cast<int32_t>(combined_position);
-          }
-          else if (rec[j].ID == 0x000003D3)
-          {
-            printf("五位数据data:0x");
-            for (i=0 ; i<rec[j].DataLen ; i++)
-            {  
-              printf(" %02X",rec[j].Data[i]); 
-            }
-            printf("\n");
-            uint8_t rv1 = rec[j].Data[1];
-            uint8_t rv2 = rec[j].Data[2];
-            uint8_t rv3 = rec[j].Data[3];
-            uint8_t rv4 = rec[j].Data[4];
-            uint32_t combined_value = (rv4 <<24) | (rv3 <<16) | (rv2 <<8) | rv1;
-            int32_t velocity_output = static_cast<int32_t>(combined_value);
-            const double RPM_SCALE = 0.6 / 0x00040000;
-            double speed_rpm = RPM_SCALE * velocity_output;
-            double speed_deg_per_sec = 6.0 * speed_rpm;
-            cout << "速度：（度/s)" << speed_deg_per_sec <<endl;
-            Output_VelocityValue = speed_deg_per_sec;
-          }
-          else
-          {
-            printf("data:0x");
-            for (i=0 ; i<rec[j].DataLen ; i++)
-            {  
-              printf(" %02X",rec[j].Data[i]); 
-            }
-            printf("\n");
-          }
-        }
-    }
-  }  
-}
-
-
-void SendData(VCI_CAN_OBJ &handle_obj, const int id, const BYTE *data)
-{
-  handle_obj.ID = id;
-  handle_obj.RemoteFlag = 0;
-  handle_obj.ExternFlag = 0;
-  handle_obj.DataLen = 8;
-  for (int i = 0; i < handle_obj.DataLen; i++)
-  {
-    handle_obj.Data[i] = data[i];
-  }
-  if (VCI_Transmit(VCI_USBCAN2, 0, 0, &handle_obj, 1) > 0)
-  {
-  }
-  else
-  {
-    RCLCPP_ERROR_STREAM(rclcpp::get_logger("ankle"), "Error initializing!");
-  }
-}
-
-void SendData_five(VCI_CAN_OBJ &handle_obj, const int id, const BYTE *data)
-{
-  handle_obj.ID = id;
-  handle_obj.RemoteFlag = 0;
-  handle_obj.ExternFlag = 0;
-  handle_obj.DataLen = 5;
-  for (int i = 0; i < handle_obj.DataLen; i++)
-  {
-    handle_obj.Data[i] = data[i];
-  }
-  if (VCI_Transmit(VCI_USBCAN2, 0, 0, &handle_obj, 1) > 0)
-  {
-  }
-  else
-  {
-    RCLCPP_ERROR_STREAM(rclcpp::get_logger("ankle"), "Error initializing!");
-  }
 }

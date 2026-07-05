@@ -86,5 +86,6 @@
         "random": "cpp",
         "set": "cpp",
         "shared_mutex": "cpp"
-    }
+    },
+    "cmake.sourceDirectory": "/home/ler/git_/Ankle_Exoskeleton_ustb/src/can_ankle"
 }
