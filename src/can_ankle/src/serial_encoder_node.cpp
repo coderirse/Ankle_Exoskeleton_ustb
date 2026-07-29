@@ -27,7 +27,7 @@ int main(int argc, char** argv)
     // Open serial port
     try
     {
-        ser.setPort("/dev/ttyCH341USB0");
+        ser.setPort("/dev/ttyUSB0");
         ser.setBaudrate(9600);
         ser.setBytesize(serial::eightbits);
         ser.setParity(serial::parity_none);

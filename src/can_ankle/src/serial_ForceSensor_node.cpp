@@ -37,7 +37,7 @@ int main(int argc, char** argv) {
     auto node = std::make_shared<rclcpp::Node>("serial_ForceSensor_node");
 
     // Declare parameters
-    node->declare_parameter<std::string>("port", "/dev/ttyCH341USB1");
+    node->declare_parameter<std::string>("port", "/dev/ttyUSB2");
     node->declare_parameter<int>("baudrate", 19200);
     node->declare_parameter<int>("slave_id", 1);
     node->declare_parameter<double>("scale_factor", 0.01);

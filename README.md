@@ -17,6 +17,12 @@ ankle_ws/
 │       ├── include/        # 头文件
 │       ├── src/            # 源代码
 │       └── launch/         # 启动文件 (Python)
+├── scripts/                # 运行时Python脚本 (当前实际使用的控制链路)
+│   ├── can_bridge.py       # CAN↔TCP桥 (sudo运行, 隔离CAN与ROS2进程)
+│   ├── assist_controller.py# 助力控制器 (状态机+力保护+开机预紧, 参数见工作日志)
+│   ├── switch_node.py      # 脚底开关ROS2节点
+│   ├── switch_monitor.py   # 开关独立监控(自动扫端口)
+│   └── motor_remote.py     # 电机键盘遥控器(独立调试用)
 ├── data/                   # 实验数据
 │   ├── lzfirst/            # 编码器/扭矩实验记录
 │   └── *.bag, *.csv        # ROS 录包及数据文件

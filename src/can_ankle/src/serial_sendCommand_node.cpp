@@ -67,7 +67,7 @@ int main(int argc, char **argv)
 
     try
     {
-        ser.setPort("/dev/ttyCH341USB1"); // 脚底开关 - 实际端口待确认
+        ser.setPort("/dev/ttyUSB1"); // 脚底开关 (2026-07-29 经拓展坞实测确认)
         ser.setBaudrate(9600);
         ser.setBytesize(serial::eightbits);
         ser.setParity(serial::parity_none);
