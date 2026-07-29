@@ -27,40 +27,19 @@
 
 extern "C" {
 #include <stdio.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <pthread.h>
+#include <string.h>
 #include <unistd.h>
-#include <spawn.h>
+#include <pthread.h>
+#include <cstdlib>
 }
+
+#include "can_ankle/controlcan.h"
 
 using namespace std;
 using namespace chrono;
 
-// ====== CAN types (compatible with original VCI API) ======
-typedef uint8_t  BYTE;
-typedef uint32_t DWORD;
-
-typedef struct {
-    DWORD ID;
-    BYTE  Data[8];
-    BYTE  DataLen;
-    BYTE  SendType;
-    BYTE  RemoteFlag;
-    BYTE  ExternFlag;
-    BYTE  Reserved[3];
-} VCI_CAN_OBJ;
-
-typedef struct {
-    DWORD AccCode, AccMask, Reserved;
-    BYTE  Filter, Timing0, Timing1, Mode;
-} VCI_INIT_CONFIG;
-
-// CAN globals
-
-// ====== CAN subprocess I/O ======
-void can_init(void);    // open popen to python-can helper
+// ====== CAN native VCI I/O ======
+void can_init(void);    // open libcontrolcan device
 void can_send(DWORD id, const BYTE* data, int len);
 int  can_recv(DWORD* id, BYTE* data, int timeout_ms);
 void can_close(void);
@@ -123,82 +102,86 @@ void sendVelocityCommand(double y);
 void sendTorTransVelCommand(double y);
 vector<uint8_t> speed_to_command(double speed);
 
-
-// ====== CAN subprocess implementation (replaces VCI_USBCAN2) ======
-// Uses pipe+fork to python-can helper (bidirectional)
-
-static int can_tx_fd = -1, can_rx_fd = -1;
-static FILE* can_tx_fp = nullptr;
-static FILE* can_rx_fp = nullptr;
-static std::mutex can_mutex;
+// ====== CAN native libcontrolcan implementation ======
+static bool can_opened = false;
+static std::recursive_mutex can_mutex;
+#define CAN_DEV_TYPE VCI_USBCAN2
+#define CAN_DEV_IND  0
+#define CAN_CH       0
 
 inline void can_init(void) {
-    if (can_tx_fd >= 0) return;
-    int tx_p[2], rx_p[2];
-    pipe(tx_p); pipe(rx_p);
-    posix_spawn_file_actions_t fa;
-    posix_spawn_file_actions_init(&fa);
-    posix_spawn_file_actions_addclose(&fa, tx_p[1]);
-    posix_spawn_file_actions_addclose(&fa, rx_p[0]);
-    posix_spawn_file_actions_adddup2(&fa, tx_p[0], 0);
-    posix_spawn_file_actions_adddup2(&fa, rx_p[1], 1);
-    char* argv[] = {(char*)"sudo", (char*)"-n", (char*)"python3", (char*)"/tmp/can_helper.py", NULL};
-    extern char** environ;
-    pid_t pid;
-    posix_spawn(&pid, "/usr/bin/sudo", &fa, NULL, argv, environ);
-    posix_spawn_file_actions_destroy(&fa);
-    /* posix_spawn used instead of fork+exec */
-    close(tx_p[0]); close(rx_p[1]);
-    can_tx_fd = tx_p[1]; can_rx_fd = rx_p[0];
-    can_tx_fp = fdopen(can_tx_fd, "w");
-    can_rx_fp = fdopen(can_rx_fd, "r");
-    setvbuf(can_tx_fp, NULL, _IONBF, 0);
-    usleep(500000);
+    if (can_opened) return;
+    std::lock_guard<std::recursive_mutex> lk(can_mutex);
+    memset(&config, 0, sizeof(config));
+    config.AccCode = 0;
+    config.AccMask = 0xFFFFFFFF;
+    config.Filter = 0;
+    config.Timing0 = 0x00;   // 1Mbps
+    config.Timing1 = 0x14;
+    config.Mode = 0;
+    if (std::system("which usbreset >/dev/null 2>&1") != 0) {
+        fprintf(stderr, "[can] 警告: 未找到 usbreset，CAN 设备可能因 'Device or resource busy' 无法打开\n");
+        fprintf(stderr, "[can] 请安装 usbreset (如: sudo apt install usbutils 或从源码编译)\n");
+    }
+    std::system("usbreset 04d8:0053 2>/dev/null");
+    usleep(200000);
+    if (VCI_OpenDevice(CAN_DEV_TYPE, CAN_DEV_IND, 0) != STATUS_OK) {
+        fprintf(stderr, "[can] VCI_OpenDevice failed\n"); return;
+    }
+    if (VCI_InitCAN(CAN_DEV_TYPE, CAN_DEV_IND, CAN_CH, &config) != STATUS_OK) {
+        fprintf(stderr, "[can] VCI_InitCAN failed\n"); VCI_CloseDevice(CAN_DEV_TYPE, CAN_DEV_IND); return;
+    }
+    if (VCI_StartCAN(CAN_DEV_TYPE, CAN_DEV_IND, CAN_CH) != STATUS_OK) {
+        fprintf(stderr, "[can] VCI_StartCAN failed\n"); VCI_CloseDevice(CAN_DEV_TYPE, CAN_DEV_IND); return;
+    }
+    VCI_ClearBuffer(CAN_DEV_TYPE, CAN_DEV_IND, CAN_CH);
+    can_opened = true;
+    usleep(200000);
     // NMT pre-op + standard CANopen enable
     BYTE nmt[]={0x80,0x53}; can_send(0x000,nmt,2);
     usleep(200000);
-    // Set PV mode and enable via SDO-like commands
     BYTE set_pv[]={0x2F,0x60,0x60,0x00,0x03,0x00,0x00,0x00}; can_send(0x653,set_pv,8); usleep(50000);
     BYTE shutdown[]={0x2B,0x40,0x60,0x00,0x06,0x00,0x00,0x00}; can_send(0x653,shutdown,8); usleep(80000);
     BYTE swon[]={0x2B,0x40,0x60,0x00,0x07,0x00,0x00,0x00}; can_send(0x653,swon,8); usleep(80000);
     BYTE enable[]={0x2B,0x40,0x60,0x00,0x0F,0x00,0x00,0x00}; can_send(0x653,enable,8); usleep(80000);
-    fprintf(stderr, "[can] subprocess started\n");
+    fprintf(stderr, "[can] native CAN opened, motor enabled\n");
+    pthread_create(&threadid, NULL, receive_func, NULL);
+    pthread_detach(threadid);
 }
 
 inline void can_send(DWORD id, const BYTE* data, int len) {
-    if (!can_tx_fp) return;
-    std::lock_guard<std::mutex> lk(can_mutex);
-    fprintf(can_tx_fp, "TX %08X %d", (unsigned)id, len);
-    for (int i = 0; i < len && i < 8; i++) fprintf(can_tx_fp, " %02X", data[i]);
-    fprintf(can_tx_fp, "\n"); fflush(can_tx_fp);
-    char ok[8]; fgets(ok, sizeof(ok), can_rx_fp);
+    if (!can_opened) return;
+    std::lock_guard<std::recursive_mutex> lk(can_mutex);
+    VCI_CAN_OBJ obj;
+    memset(&obj, 0, sizeof(obj));
+    obj.ID = id;
+    obj.ExternFlag = 0;
+    obj.RemoteFlag = 0;
+    obj.SendType = 0;
+    obj.DataLen = (len > 8 ? 8 : len);
+    for (int i = 0; i < obj.DataLen; i++) obj.Data[i] = data[i];
+    VCI_Transmit(CAN_DEV_TYPE, CAN_DEV_IND, CAN_CH, &obj, 1);
 }
 
 inline int can_recv(DWORD* id, BYTE* data, int timeout_ms) {
-    if (!can_rx_fp) return -1;
-    std::lock_guard<std::mutex> lk(can_mutex);
-    fprintf(can_tx_fp, "RX\n"); fflush(can_tx_fp);
-    char buf[256]; int pos = 0;
-    auto t0 = std::chrono::steady_clock::now();
-    while (pos < (int)sizeof(buf)-1) {
-        int c = fgetc(can_rx_fp);
-        if (c == EOF) {
-            clearerr(can_rx_fp);
-            if (std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now()-t0).count() > timeout_ms) return -1;
-            usleep(1000); continue;
-        }
-        if (c == '\n') { buf[pos] = '\0'; break; }
-        buf[pos++] = (char)c;
-    }
-    if (strncmp(buf, "TIMEOUT", 7) == 0) return 0;
-    unsigned rid, rdlc, d[8] = {};
-    int n = sscanf(buf, "%X %u %x %x %x %x %x %x %x %x", &rid,&rdlc,&d[0],&d[1],&d[2],&d[3],&d[4],&d[5],&d[6],&d[7]);
-    if (n >= 2) { *id = rid; for (int i=0; i<(int)rdlc&&i<8; i++) data[i]=(BYTE)d[i]; return (int)rdlc; }
-    return -1;
+    if (!can_opened) return -1;
+    std::lock_guard<std::recursive_mutex> lk(can_mutex);
+    VCI_CAN_OBJ obj;
+    memset(&obj, 0, sizeof(obj));
+    int n = VCI_Receive(CAN_DEV_TYPE, CAN_DEV_IND, CAN_CH, &obj, 1, timeout_ms);
+    if (n <= 0) return 0;
+    *id = obj.ID;
+    int len = obj.DataLen > 8 ? 8 : obj.DataLen;
+    for (int i = 0; i < len; i++) data[i] = obj.Data[i];
+    return len;
 }
 
 inline void can_close(void) {
-    if (can_tx_fp) { std::lock_guard<std::mutex> lk(can_mutex); fprintf(can_tx_fp, "QUIT\n"); fflush(can_tx_fp); fclose(can_tx_fp); fclose(can_rx_fp); can_tx_fp=nullptr; can_rx_fp=nullptr; }
+    if (can_opened) {
+        std::lock_guard<std::recursive_mutex> lk(can_mutex);
+        VCI_CloseDevice(CAN_DEV_TYPE, CAN_DEV_IND);
+        can_opened = false;
+    }
 }
 
 // ====== VCI-compatible wrappers ======
@@ -211,7 +194,7 @@ inline void *receive_func(void *param) {
     (void)param;
     while (rclcpp::ok()) {
         DWORD id; BYTE data[8];
-        int len = can_recv(&id, data, 500);
+        int len = can_recv(&id, data, 10);  // 短超时避免阻塞主线程发送
         if (len <= 0) continue;
         if (id == 0x000001D3 && len >= 8) {
             uint16_t ct = (data[3]<<8)|data[2];

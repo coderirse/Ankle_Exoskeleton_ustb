@@ -15,9 +15,13 @@ find_package(rosidl_default_generators REQUIRED)
 
 set(SERIAL_INCLUDE_DIR "$ENV{HOME}/.local/include" CACHE PATH "serial include dir")
 set(SERIAL_LIBRARY "$ENV{HOME}/.local/lib/libserial.a" CACHE FILEPATH "serial library")
+set(LIBCONTROLCAN_LIB "${CMAKE_CURRENT_SOURCE_DIR}/lib/libcontrolcan.so" CACHE FILEPATH "controlcan library")
 
 if(NOT EXISTS "${SERIAL_INCLUDE_DIR}/serial/serial.h")
   message(FATAL_ERROR "serial header not found")
+endif()
+if(NOT EXISTS "${LIBCONTROLCAN_LIB}")
+  message(FATAL_ERROR "libcontrolcan.so not found at ${LIBCONTROLCAN_LIB}")
 endif()
 
 rosidl_generate_interfaces(${PROJECT_NAME}
@@ -29,7 +33,7 @@ include_directories(include ${SERIAL_INCLUDE_DIR})
 
 macro(add_can_exec name src_file)
   add_executable(${name} ${src_file} ${ARGN})
-  target_link_libraries(${name} ${SERIAL_LIBRARY} pthread)
+  target_link_libraries(${name} ${SERIAL_LIBRARY} ${LIBCONTROLCAN_LIB} pthread dl)
   ament_target_dependencies(${name} rclcpp std_msgs geometry_msgs sensor_msgs)
   rosidl_target_interfaces(${name} ${PROJECT_NAME} "rosidl_typesupport_cpp")
 endmacro()

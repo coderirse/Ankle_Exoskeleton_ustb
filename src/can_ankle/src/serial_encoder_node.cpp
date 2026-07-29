@@ -24,10 +24,13 @@ int main(int argc, char** argv)
     rclcpp::WallRate loop_rate(std::chrono::milliseconds(5)); // 200 Hz
     signal(SIGINT, signalHandler);
 
+    node->declare_parameter<std::string>("port", "/dev/ankle_encoder");
+    std::string port = node->get_parameter("port").as_string();
+
     // Open serial port
     try
     {
-        ser.setPort("/dev/ttyUSB0");
+        ser.setPort(port);
         ser.setBaudrate(9600);
         ser.setBytesize(serial::eightbits);
         ser.setParity(serial::parity_none);
@@ -44,7 +47,7 @@ int main(int argc, char** argv)
 
     if (ser.isOpen())
     {
-        RCLCPP_INFO_STREAM(node->get_logger(), "Serial Port initialized (Modbus RTU, 9600)");
+        RCLCPP_INFO_STREAM(node->get_logger(), "Serial Port initialized (Modbus RTU, 9600) on " << port);
 
         while (rclcpp::ok())
         {

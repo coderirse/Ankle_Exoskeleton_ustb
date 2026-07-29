@@ -16,6 +16,19 @@ int control_mode = 0;//控制模式
 bool slope_file_initialized = false;
 std::ofstream slope_file;
 
+// 2026-07-29 台架参数 (由ROS参数覆盖)
+double MOTOR_DIR = 1.0;          // 电机方向: +1收线拉紧, -1放线
+double FORCE_LIMIT = 5.0;        // 力限值(/Force尺度, 超限立即停)
+double TORQUE_PER_FORCE = 6.0;   // Nm per /Force单位 (台架杠杆比标定)
+double PRELOAD_SPEED = 10.0;     // 预紧爬速 deg/s
+double PRELOAD_FORCE = 0.2;      // 预紧目标力
+double PRELOAD_TIMEOUT = 4.0;    // 预紧超时 s
+double MAX_SPEED = 180.0;        // 速度限幅 deg/s (替换V_max)
+float  g_force_value = 0.0;      // 原始力传感器值(/Force)
+
+// 前向声明
+void send_speed(double deg_s);
+
 //canopen配置指令
 class ConfigNode
 {
@@ -319,6 +332,8 @@ void signalHandler(int signum)
 {
   cout << "启动归零程序..." << endl;
   ST.need_homing = true; // 设置标志位
+  (void)signum;
+  can_close();
 }
 
 //实时速度解算函数(自适应步速)
@@ -391,16 +406,15 @@ void processHoming()
         is_homing = true;
         // 发送归零指令
         double return_velocity = (Enc.initialEncoderValue > Enc.Encoder_Value) ? RETURN_VELOCITY : -RETURN_VELOCITY;
-        speed_to_command(return_velocity);
-        BYTE return_data[5] = {0x03, byte0, byte1, byte2, byte3};
-        SendData_five(send_motor_torque, 0x00000353, return_data);
+        send_speed(return_velocity);
         usleep(50000);
         while(abs(Enc.Encoder_Value - Enc.initialEncoderValue) < 2 && rclcpp::ok()) 
         {   // 关闭流程
-            SendData_five(config_node, 0x00000353, cfg.para_V);
+            send_speed(0);
             usleep(200000);
             cout << "关闭节点" << endl;
-            SendData(config_node, 0x00000253, cfg.para_motor2); // 停止电机
+            BYTE sd[] = {0x2B, 0x40, 0x60, 0x00, 0x06, 0x00, 0x00, 0x00};
+            SendData(config_node, 0x00000653, sd); // 停止电机
             usleep(200000);
             rclcpp::shutdown();
             exit(0);
@@ -434,11 +448,14 @@ void encoderCallback(const std_msgs::msg::Float64::SharedPtr msg)
 //力传感器回调函数，接收力传感器返回值
 void torqueCallback(const std_msgs::msg::Float32::SharedPtr msg)
 {
-  float forcevalue = msg->data;
-  SensorTorque = forcevalue * 0.12 ;
-  if (forcevalue > 300)
+  g_force_value = msg->data;
+  SensorTorque = g_force_value * TORQUE_PER_FORCE;  // Nm (台架杠杆比)
+  // 力保护: 超限立即停电机回STAND
+  if (fabs(g_force_value) >= FORCE_LIMIT)
   {
-    ST.need_homing = true;
+    currentDriveMode = STAND_MODE;
+    send_speed(0.0);
+    RCLCPP_WARN(rclcpp::get_logger("ankle"), "力超限! %.2f >= %.2f, 电机停止", g_force_value, FORCE_LIMIT);
   }
 }
 
@@ -515,18 +532,14 @@ void updateCompensateTorque()
         Tor.CompensatePosition = a;
         angleDiff = Output_Angle - Enc.initialMotorPosition_one;
         TransV = angleDiff  * 2;
-        speed_to_command(TransV);
-        BYTE velocity_data[5] = {0x03 , byte0 , byte1 , byte2 , byte3};
-        SendData_five(config_node , 0x00000353 , velocity_data);
+        send_speed(TransV);
     } 
     else 
     {  //奇数次
         Tor.CompensatePosition = b;
         angleDiff = Output_Angle - Enc.initialMotorPosition_two;
         TransV = angleDiff *2;
-        speed_to_command(TransV);
-        BYTE velocity_data[5]  = {0x03 , byte0 , byte1 , byte2 , byte3};
-        SendData_five(config_node , 0x00000353 , velocity_data);
+        send_speed(TransV);
     }
 
     RCLCPP_INFO(rclcpp::get_logger("ankle"), "补偿角度： %f", Tor.CompensatePosition);
@@ -566,6 +579,16 @@ vector<uint8_t> speed_to_command(double speed)
     return {byte0, byte1, byte2, byte3};
 }
 
+// 2026-07-29 新电机SDO速度指令: 0x60FF, uu/s = deg/s × 600 × MOTOR_DIR
+void send_speed(double deg_s)
+{
+    int32_t uu = (int32_t)(deg_s * MOTOR_DIR * 600.0);
+    BYTE d[8] = {0x23, 0xFF, 0x60, 0x00,
+                 (BYTE)(uu & 0xFF), (BYTE)((uu >> 8) & 0xFF),
+                 (BYTE)((uu >> 16) & 0xFF), (BYTE)((uu >> 24) & 0xFF)};
+    SendData(config_node, 0x00000653, d);
+}
+
 //发送扭矩跟踪转换电机速度指令函数
 void sendTorTransVelCommand(double y)
 {
@@ -573,30 +596,14 @@ void sendTorTransVelCommand(double y)
     double dt = timer.getRealTimeDt(); // 从Timer获取dt
     adjusted_velocity = pid.compute(torque_value, SensorTorque, dt); //PID控制
     velocity_value = adjusted_velocity;//发送的速度值
-
-    speed_to_command(velocity_value);
-    velocity_output[1] = byte0;
-    velocity_output[2] = byte1;
-    velocity_output[3] = byte2;
-    velocity_output[4] = byte3;
-    BYTE velocity_data[5] = {velocity_output[0],velocity_output[1],velocity_output[2],velocity_output[3],velocity_output[4]};
-    //cout<<"发出的指令："<<"["<< hex << setw(2) << setfill('0') << velocity_output[0] <<"],["<< hex << setw(2) << setfill('0')<< velocity_output[1] <<"],["<< hex << setw(2) << setfill('0')<< velocity_output[2] <<"],["<< hex << setw(2) << setfill('0')<< velocity_output[3] <<"],["<< hex << setw(2) << setfill('0')<< velocity_output[4] <<"]"<< endl;
-    SendData_five(send_motor_torque, 0x00000353, velocity_data);
-
+    send_speed(velocity_value);
 }
 
 //直接发送速度指令函数
 void sendVelocityCommand(double y) 
 {
   velocity_value = y;
-  speed_to_command(velocity_value);
-  velocity_output[1] = byte0;
-  velocity_output[2] = byte1;
-  velocity_output[3] = byte2;
-  velocity_output[4] = byte3;
-  BYTE velocity_data[5] = {velocity_output[0],velocity_output[1],velocity_output[2],velocity_output[3],velocity_output[4]};
-  //cout<<"发出的指令："<<"["<< hex << setw(2) << setfill('0') << velocity_output[0] <<"],["<< hex << setw(2) << setfill('0')<< velocity_output[1] <<"],["<< hex << setw(2) << setfill('0')<< velocity_output[2] <<"],["<< hex << setw(2) << setfill('0')<< velocity_output[3] <<"],["<< hex << setw(2) << setfill('0')<< velocity_output[4] <<"]"<< endl;
-  SendData_five(send_motor_torque, 0x00000353, velocity_data);
+  send_speed(velocity_value);
 }
 
 //坡度储存函数
@@ -817,17 +824,59 @@ int main(int argc, char **argv)
   auto imu_sub = node->create_subscription<sensor_msgs::msg::Imu>("imu", 10, imuCallback);
   auto twist_sub = node->create_subscription<geometry_msgs::msg::Twist>("/system_speed", 10, twistCallback);
   //initializeSlopeFile();
-  getControlMode();//选择输入模式
-  getUserWeight(); //获取人体体重
+  // 2026-07-29: 用ROS参数替代cin交互输入
+  node->declare_parameter<int>("control_mode", 1);
+  node->declare_parameter<double>("user_weight", 60.0);
+  node->declare_parameter<double>("force_limit", 5.0);
+  node->declare_parameter<double>("torque_per_force", 6.0);
+  node->declare_parameter<double>("motor_dir", 1.0);
+  node->declare_parameter<double>("preload_speed", 10.0);
+  node->declare_parameter<double>("preload_force", 0.2);
+  node->declare_parameter<double>("preload_timeout", 4.0);
+  node->declare_parameter<double>("max_speed", 180.0);
+  control_mode = node->get_parameter("control_mode").as_int();
+  user_weight = node->get_parameter("user_weight").as_double();
+  user_weight = std::clamp(user_weight, 40.0, 90.0);
+  FORCE_LIMIT = node->get_parameter("force_limit").as_double();
+  TORQUE_PER_FORCE = node->get_parameter("torque_per_force").as_double();
+  MOTOR_DIR = node->get_parameter("motor_dir").as_double();
+  PRELOAD_SPEED = node->get_parameter("preload_speed").as_double();
+  PRELOAD_FORCE = node->get_parameter("preload_force").as_double();
+  PRELOAD_TIMEOUT = node->get_parameter("preload_timeout").as_double();
+  MAX_SPEED = node->get_parameter("max_speed").as_double();
+  V_max = MAX_SPEED; V_min = -MAX_SPEED;
+  Tor.TARGET_TORQUE_BASE = user_weight * 0.3;
+  RCLCPP_INFO(node->get_logger(), "控制参数: mode=%d 体重=%.1f 力限=%.1f t_per_f=%.2f motor_dir=%.0f max_speed=%.1f",
+              control_mode, user_weight, FORCE_LIMIT, TORQUE_PER_FORCE, MOTOR_DIR, MAX_SPEED);
 
   pid.resetIntegral();//清除pd积分项
 
-  //初始化can节点
+  //初始化can节点 (TCP连接can_bridge.py, 已完成使能)
   Init_Can();
-  sendMSG();
-  motor_on_V();
+
+  // 2026-07-29: 开机预紧标定 - 慢速收线直到鲍登线绷直
+  {
+    RCLCPP_INFO(node->get_logger(), "预紧标定开始...");
+    auto t0 = std::chrono::steady_clock::now();
+    while (rclcpp::ok()) {
+      rclcpp::spin_some(node);
+      if (fabs(g_force_value) >= PRELOAD_FORCE) {
+        RCLCPP_INFO(node->get_logger(), "预紧完成 force=%.2f", g_force_value); break;
+      }
+      auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - t0).count() / 1000.0;
+      if (elapsed > PRELOAD_TIMEOUT) {
+        RCLCPP_WARN(node->get_logger(), "预紧超时 force=%.2f, 检查鲍登线", g_force_value); break;
+      }
+      send_speed(PRELOAD_SPEED);
+      usleep(5000);
+    }
+    send_speed(0.0);
+  }
+
   rclcpp::WallRate loop_rate(std::chrono::milliseconds(5));  // 200Hz
   signal(SIGINT, signalHandler);
+  RCLCPP_INFO(node->get_logger(), "进入主循环, 初始模式=STAND_MODE");
+  int loop_count = 0;
   //发送指令
   while (rclcpp::ok())
   {
@@ -835,12 +884,6 @@ int main(int argc, char **argv)
     loop_rate.sleep();
 
     processHoming();//是否归零
-
-    velocity_output[0] = 0x03;
-    velocity_output[1] = 0x00;
-    velocity_output[2] = 0x00;
-    velocity_output[3] = 0x00;
-    velocity_output[4] = 0x00;
 
     double y = 0.0;
 
@@ -931,7 +974,7 @@ int main(int argc, char **argv)
     }
     else if (currentDriveMode == STAND_MODE) 
     {
-        SendData_five(send_motor_torque, 0x00000353, cfg.para_V);
+        send_speed(0.0);
     }
     //发布消息
     can_ankle::msg::Torque torque_msg;
@@ -941,6 +984,10 @@ int main(int argc, char **argv)
     torque_msg.return_velocity = Output_VelocityValue;
     torque_msg.return_torque_value = Output_TorqueValue;
     torque_pub->publish(torque_msg);
+    if (++loop_count % 200 == 1) { // 每秒打印一次
+      RCLCPP_INFO(node->get_logger(), "主循环运行中 count=%d mode=%d force=%.2f",
+                  loop_count, (int)currentDriveMode, SensorTorque);
+    }
   }
   if (slope_file.is_open())
   {

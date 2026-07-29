@@ -37,11 +37,11 @@ int main(int argc, char** argv) {
     auto node = std::make_shared<rclcpp::Node>("serial_ForceSensor_node");
 
     // Declare parameters
-    node->declare_parameter<std::string>("port", "/dev/ttyUSB2");
+    node->declare_parameter<std::string>("port", "/dev/ankle_force");
     node->declare_parameter<int>("baudrate", 19200);
     node->declare_parameter<int>("slave_id", 1);
     node->declare_parameter<double>("scale_factor", 0.01);
-    node->declare_parameter<bool>("debug", true);
+    node->declare_parameter<bool>("debug", false);
 
     std::string port = node->get_parameter("port").as_string();
     int baudrate = node->get_parameter("baudrate").as_int();
@@ -105,7 +105,7 @@ int main(int argc, char** argv) {
 
         if (n >= expected_len) {
             if (debug) {
-                RCLCPP_INFO(node->get_logger(), "RX: %s", to_hex_string(resp, n).size() > 0 ? to_hex_string(resp, n).c_str() : "TIMEOUT");
+                RCLCPP_DEBUG(node->get_logger(), "RX: %s", to_hex_string(resp, n).size() > 0 ? to_hex_string(resp, n).c_str() : "TIMEOUT");
             }
             
             if (resp[0] == slave_id && resp[1] == 0x03 && resp[2] == 0x04) {
@@ -133,7 +133,7 @@ int main(int argc, char** argv) {
             }
         } else {
             if (debug) {
-                RCLCPP_INFO(node->get_logger(), "No response from sensor (received %zu bytes)", n);
+                RCLCPP_DEBUG(node->get_logger(), "No response from sensor (received %zu bytes)", n);
             }
         }
 

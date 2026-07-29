@@ -65,9 +65,12 @@ int main(int argc, char **argv)
     rclcpp::WallRate loop_rate(std::chrono::milliseconds(1)); // ~1000 Hz polling
     signal(SIGINT, signalHandler);
 
+    node->declare_parameter<std::string>("port", "/dev/ankle_switch");
+    std::string port = node->get_parameter("port").as_string();
+
     try
     {
-        ser.setPort("/dev/ttyUSB1"); // 脚底开关 (2026-07-29 经拓展坞实测确认)
+        ser.setPort(port); // 脚底开关 (2026-07-29 经拓展坞实测确认)
         ser.setBaudrate(9600);
         ser.setBytesize(serial::eightbits);
         ser.setParity(serial::parity_none);
@@ -84,7 +87,7 @@ int main(int argc, char **argv)
 
     if (ser.isOpen())
     {
-        RCLCPP_INFO_STREAM(node->get_logger(), "Serial port initialized");
+        RCLCPP_INFO_STREAM(node->get_logger(), "Serial port initialized on " << port);
         uint8_t byte;
 
         while (rclcpp::ok())
