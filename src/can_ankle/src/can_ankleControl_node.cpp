@@ -19,12 +19,31 @@ std::ofstream slope_file;
 // 2026-07-29 台架参数 (由ROS参数覆盖)
 double MOTOR_DIR = 1.0;          // 电机方向: +1收线拉紧, -1放线
 double FORCE_LIMIT = 5.0;        // 力限值(/Force尺度, 超限立即停)
+double FORCE_EMERGENCY = 35.0;   // 力传感器硬限值 kg, 超限急停锁存(防鲍登线绷断)
 double TORQUE_PER_FORCE = 6.0;   // Nm per /Force单位 (台架杠杆比标定)
 double PRELOAD_SPEED = 10.0;     // 预紧爬速 deg/s
-double PRELOAD_FORCE = 0.2;      // 预紧目标力
+double PRELOAD_FORCE = 0.2;      // 预紧目标力 (旧参数, 已被min/max取代)
+double PRELOAD_FORCE_MIN = 0.5;  // 预紧目标力下限 kg (站立预紧完成后应在此范围)
+double PRELOAD_FORCE_MAX = 2.0;  // 预紧目标力上限 kg
 double PRELOAD_TIMEOUT = 4.0;    // 预紧超时 s
+double STAND_CONFIRM_TIME = 2.0; // 初始化条件全部满足所需持续时间 s
+double LEVEL_PITCH_LIMIT = 15.0; // 脚面水平俯仰角容差 deg
+double LEVEL_ENCODER_TARGET = 0.0;  // 脚面水平时的编码器目标角度 deg
+double LEVEL_ENCODER_LIMIT = 10.0;  // 编码器角度容差 deg
+double INIT_TIMEOUT = 30.0;      // 初始化对准总超时 s (超时告警后继续)
 double MAX_SPEED = 180.0;        // 速度限幅 deg/s (替换V_max)
 float  g_force_value = 0.0;      // 原始力传感器值(/Force)
+
+// 急停锁存: 力超过 FORCE_EMERGENCY 后只发零速, 需重启恢复
+bool emergency_stop = false;
+
+// 足底开关原始状态跟踪(用于站立确认, 不受指令顺序校验影响)
+uint8_t last_switch_command = 0;                            // 最近一次收到的开关指令
+std::chrono::steady_clock::time_point last_switch_time;     // 收到该指令的时刻
+
+// IMU数据跟踪
+bool imu_received = false;
+std::chrono::steady_clock::time_point last_imu_time;
 
 // 前向声明
 void send_speed(double deg_s);
@@ -450,6 +469,16 @@ void torqueCallback(const std_msgs::msg::Float32::SharedPtr msg)
 {
   g_force_value = msg->data;
   SensorTorque = g_force_value * TORQUE_PER_FORCE;  // Nm (台架杠杆比)
+  // 硬限值急停: 超过35kg立即停机并锁存, 防鲍登线绷断
+  if (fabs(g_force_value) >= FORCE_EMERGENCY)
+  {
+    emergency_stop = true;
+    currentDriveMode = STAND_MODE;
+    send_speed(0.0);
+    RCLCPP_ERROR(rclcpp::get_logger("ankle"), "急停! 力 %.2f kg 超过硬限值 %.1f kg, 电机已锁停, 请检查系统后重启",
+                 g_force_value, FORCE_EMERGENCY);
+    return;
+  }
   // 力保护: 超限立即停电机回STAND
   if (fabs(g_force_value) >= FORCE_LIMIT)
   {
@@ -511,7 +540,8 @@ void extractImuData(const sensor_msgs::msg::Imu::SharedPtr msg)
 void imuCallback(const sensor_msgs::msg::Imu::SharedPtr msg)
 {
     extractImuData(msg);
-    //RCLCPP_INFO(rclcpp::get_logger("ankle"),"IMU Data Received");
+    imu_received = true;
+    last_imu_time = std::chrono::steady_clock::now();
 }
 
 //补偿位置速度输出函数
@@ -708,10 +738,17 @@ bool checkCommandSequence(uint8_t currentCommand)
 }
 
 //脚底开关指令接收函数
-void commandCallback(const std_msgs::msg::UInt8::SharedPtr msg) 
+void commandCallback(const std_msgs::msg::UInt8::SharedPtr msg)
 {
     uint8_t command = msg->data;
-    
+
+    // 记录原始开关状态与时间(站立确认用, 不受顺序校验影响)
+    if (command != last_switch_command)
+    {
+        last_switch_command = command;
+        last_switch_time = std::chrono::steady_clock::now();
+    }
+
     // 添加安全检查，如果指令顺序错误，立即触发归零并返回
     if(!checkCommandSequence(command))
     {
@@ -793,12 +830,12 @@ double updateTorquePeak()
 }
 
 // 模式选择输入函数
-void getControlMode() 
+void getControlMode()
 {
     cout << "请输入模式1/2: " << endl;
     int input;
     // 循环验证输入合法性（必须是1或2）
-    while (!(cin >> input) || (input != 1 && input != 2)) 
+    while (!(cin >> input) || (input != 1 && input != 2))
     {
         cin.clear();  // 清除输入错误状态
         // 忽略缓冲区中剩余的无效输入
@@ -807,6 +844,116 @@ void getControlMode()
     }
     control_mode = input;
     cout << "已选择模式: " << control_mode << endl;
+}
+
+// IMU四元数转俯仰角 pitch = asin(2*(w*y - x*z)), 返回角度deg
+double getImuPitchDeg()
+{
+    double w = imu.imu_orientation_w, x = imu.imu_orientation_x;
+    double y = imu.imu_orientation_y, z = imu.imu_orientation_z;
+    double sinp = std::clamp(2.0 * (w * y - x * z), -1.0, 1.0);
+    return asin(sinp) * 180.0 / M_PI;
+}
+
+// 初始化对准:
+//   力控闭环维持力传感器在 [PRELOAD_FORCE_MIN, PRELOAD_FORCE_MAX] kg
+//   (线松→收线, 线紧→放线, 跟随脚放平自动调整)
+//   当 开关闭合(0x42) + 力在范围 + IMU水平 + 编码器在范围 全部满足
+//   并持续 STAND_CONFIRM_TIME 秒 → 初始化完成
+// 返回 false 表示被急停/关闭/超时中断
+bool runInitialAlignment(const rclcpp::Node::SharedPtr& node)
+{
+    RCLCPP_INFO(node->get_logger(),
+        "初始化对准: 维持力 %.1f~%.1f kg, 等待 [开关闭合+力正常+IMU水平+编码器正常] 持续 %.1f s...",
+        PRELOAD_FORCE_MIN, PRELOAD_FORCE_MAX, STAND_CONFIRM_TIME);
+
+    auto t_start = std::chrono::steady_clock::now();
+    auto t_ok = std::chrono::steady_clock::now();
+    bool all_ok_prev = false;
+    bool warned_no_imu = false;
+    int status_div = 0;
+
+    while (rclcpp::ok() && !emergency_stop)
+    {
+        rclcpp::spin_some(node);
+
+        // ── 力控: 维持力传感器在目标区间 ──
+        if (g_force_value < PRELOAD_FORCE_MIN)
+            send_speed(PRELOAD_SPEED);        // 线太松 → 收线
+        else if (g_force_value > PRELOAD_FORCE_MAX)
+            send_speed(-PRELOAD_SPEED);       // 线太紧 → 放线
+        else
+            send_speed(0.0);
+
+        // ── 各项条件检查 ──
+        bool switch_ok  = (last_switch_command == 0x42);   // 双脚开关同时闭合
+        bool force_ok   = (g_force_value >= PRELOAD_FORCE_MIN && g_force_value <= PRELOAD_FORCE_MAX);
+        bool enc_ok     = (fabs(Enc.Encoder_Value - LEVEL_ENCODER_TARGET) <= LEVEL_ENCODER_LIMIT);
+
+        double pitch_deg = 0.0;
+        bool imu_ok = true;
+        if (imu_received)
+        {
+            pitch_deg = getImuPitchDeg();
+            imu_ok = (fabs(pitch_deg) <= LEVEL_PITCH_LIMIT);
+        }
+        else if (!warned_no_imu)
+        {
+            RCLCPP_WARN(node->get_logger(), "无IMU数据, 水平检测仅使用编码器");
+            warned_no_imu = true;
+        }
+
+        bool all_ok = switch_ok && force_ok && enc_ok && imu_ok;
+
+        // ── 全条件持续时间判定 ──
+        if (all_ok)
+        {
+            if (!all_ok_prev) { t_ok = std::chrono::steady_clock::now(); all_ok_prev = true; }
+            double held = std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now() - t_ok).count() / 1000.0;
+            if (held >= STAND_CONFIRM_TIME)
+            {
+                send_speed(0.0);
+                RCLCPP_INFO(node->get_logger(),
+                    "初始化完成: force=%.2f kg, pitch=%.2f deg, encoder=%.2f deg, 稳定保持 %.1f s",
+                    g_force_value, pitch_deg, Enc.Encoder_Value, held);
+                printf("========================================\n");
+                printf("  初始化完成! 力=%.2f kg  俯仰=%.2f deg\n", g_force_value, pitch_deg);
+                printf("  编码器=%.2f deg  稳定保持 %.1f s\n", Enc.Encoder_Value, held);
+                printf("========================================\n");
+                return true;
+            }
+        }
+        else
+        {
+            all_ok_prev = false;
+        }
+
+        // 每0.5s打印一次各条件状态, 便于现场判断卡在哪一项
+        if (++status_div >= 100)
+        {
+            status_div = 0;
+            RCLCPP_INFO(node->get_logger(),
+                "对准中: 开关[%s] 力[%s %.2f] 编码器[%s %.2f] IMU[%s %.2f]",
+                switch_ok ? "OK" : "等待", force_ok ? "OK" : "调整", g_force_value,
+                enc_ok ? "OK" : "偏差", Enc.Encoder_Value,
+                imu_received ? (imu_ok ? "OK" : "倾斜") : "无数据", pitch_deg);
+        }
+
+        // 总超时保护
+        double elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now() - t_start).count() / 1000.0;
+        if (elapsed > INIT_TIMEOUT)
+        {
+            send_speed(0.0);
+            RCLCPP_WARN(node->get_logger(), "初始化对准超时 %.0f s, 放弃等待继续运行", INIT_TIMEOUT);
+            return false;
+        }
+
+        usleep(5000);
+    }
+    send_speed(0.0);
+    return false;
 }
 
 int main(int argc, char **argv)
@@ -834,6 +981,14 @@ int main(int argc, char **argv)
   node->declare_parameter<double>("preload_force", 0.2);
   node->declare_parameter<double>("preload_timeout", 4.0);
   node->declare_parameter<double>("max_speed", 180.0);
+  node->declare_parameter<double>("force_emergency", 35.0);
+  node->declare_parameter<double>("preload_force_min", 0.5);
+  node->declare_parameter<double>("preload_force_max", 2.0);
+  node->declare_parameter<double>("stand_confirm_time", 2.0);
+  node->declare_parameter<double>("level_pitch_limit", 15.0);
+  node->declare_parameter<double>("level_encoder_target", 0.0);
+  node->declare_parameter<double>("level_encoder_limit", 10.0);
+  node->declare_parameter<double>("init_timeout", 30.0);
   control_mode = node->get_parameter("control_mode").as_int();
   user_weight = node->get_parameter("user_weight").as_double();
   user_weight = std::clamp(user_weight, 40.0, 90.0);
@@ -844,33 +999,36 @@ int main(int argc, char **argv)
   PRELOAD_FORCE = node->get_parameter("preload_force").as_double();
   PRELOAD_TIMEOUT = node->get_parameter("preload_timeout").as_double();
   MAX_SPEED = node->get_parameter("max_speed").as_double();
+  FORCE_EMERGENCY = node->get_parameter("force_emergency").as_double();
+  PRELOAD_FORCE_MIN = node->get_parameter("preload_force_min").as_double();
+  PRELOAD_FORCE_MAX = node->get_parameter("preload_force_max").as_double();
+  STAND_CONFIRM_TIME = node->get_parameter("stand_confirm_time").as_double();
+  LEVEL_PITCH_LIMIT = node->get_parameter("level_pitch_limit").as_double();
+  LEVEL_ENCODER_TARGET = node->get_parameter("level_encoder_target").as_double();
+  LEVEL_ENCODER_LIMIT = node->get_parameter("level_encoder_limit").as_double();
+  INIT_TIMEOUT = node->get_parameter("init_timeout").as_double();
   V_max = MAX_SPEED; V_min = -MAX_SPEED;
   Tor.TARGET_TORQUE_BASE = user_weight * 0.3;
-  RCLCPP_INFO(node->get_logger(), "控制参数: mode=%d 体重=%.1f 力限=%.1f t_per_f=%.2f motor_dir=%.0f max_speed=%.1f",
-              control_mode, user_weight, FORCE_LIMIT, TORQUE_PER_FORCE, MOTOR_DIR, MAX_SPEED);
+  RCLCPP_INFO(node->get_logger(), "控制参数: mode=%d 体重=%.1f 力限=%.1f 急停限=%.1fkg t_per_f=%.2f motor_dir=%.0f max_speed=%.1f",
+              control_mode, user_weight, FORCE_LIMIT, FORCE_EMERGENCY, TORQUE_PER_FORCE, MOTOR_DIR, MAX_SPEED);
 
   pid.resetIntegral();//清除pd积分项
 
   //初始化can节点 (TCP连接can_bridge.py, 已完成使能)
   Init_Can();
 
-  // 2026-07-29: 开机预紧标定 - 慢速收线直到鲍登线绷直
+  // 2026-08-03: 初始化对准 — 力控维持0.5~2.0kg随脚放平收放线,
+  // 开关闭合+力正常+IMU水平+编码器正常 全部满足持续2s后初始化完毕
   {
-    RCLCPP_INFO(node->get_logger(), "预紧标定开始...");
-    auto t0 = std::chrono::steady_clock::now();
-    while (rclcpp::ok()) {
-      rclcpp::spin_some(node);
-      if (fabs(g_force_value) >= PRELOAD_FORCE) {
-        RCLCPP_INFO(node->get_logger(), "预紧完成 force=%.2f", g_force_value); break;
-      }
-      auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - t0).count() / 1000.0;
-      if (elapsed > PRELOAD_TIMEOUT) {
-        RCLCPP_WARN(node->get_logger(), "预紧超时 force=%.2f, 检查鲍登线", g_force_value); break;
-      }
-      send_speed(PRELOAD_SPEED);
-      usleep(5000);
+    bool init_ok = runInitialAlignment(node);
+    if (!init_ok && emergency_stop)
+    {
+      RCLCPP_ERROR(node->get_logger(), "初始化期间触发急停, 不进入正常控制");
     }
-    send_speed(0.0);
+    else if (!init_ok)
+    {
+      RCLCPP_WARN(node->get_logger(), "初始化未完全确认 (超时/中断), 继续运行");
+    }
   }
 
   rclcpp::WallRate loop_rate(std::chrono::milliseconds(5));  // 200Hz
@@ -887,8 +1045,13 @@ int main(int argc, char **argv)
 
     double y = 0.0;
 
+    // 急停锁存: 力超硬限值后所有状态失效, 只发零速
+    if (emergency_stop)
+    {
+        send_speed(0.0);
+    }
     // 状态机核心
-    if (currentDriveMode == TORQUE_MODE) 
+    else if (currentDriveMode == TORQUE_MODE)
     {
         ST.isForward = true;
         ST.record = true;
