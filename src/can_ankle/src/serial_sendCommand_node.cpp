@@ -19,6 +19,12 @@ bool waiting_for_start = false;
 bool valid_command_received = false;
 uint8_t current_valid_command = 0x00;
 
+// 2026-08-03: 心跳固件适配
+// STM32 心跳版固件会周期性重发当前状态, 需去重;
+// 开关当前状态通过 /switch_state 发布 (供控制节点初始化站立确认使用)
+uint8_t last_raw_byte = 0x00;   // 上一个收到的原始字节
+bool    first_byte = true;      // 是否尚未收到任何字节
+
 void signalHandler(int signum)
 {
     std::cout << "Closing..." << std::endl;
@@ -56,6 +62,7 @@ int main(int argc, char **argv)
 
     // Publishers
     auto command_pub = node->create_publisher<std_msgs::msg::UInt8>("command_topic", 10);
+    auto switch_state_pub = node->create_publisher<std_msgs::msg::UInt8>("switch_state", 10); // 2026-08-03: 开关原始状态(含心跳)
     auto one_support_pub = node->create_publisher<std_msgs::msg::Float64>("one_support_time", 10);
     auto two_support_pub = node->create_publisher<std_msgs::msg::Float64>("two_support_time", 10);
     auto three_support_pub = node->create_publisher<std_msgs::msg::Float64>("three_support_time", 10);
@@ -95,6 +102,22 @@ int main(int argc, char **argv)
             if (ser.available())
             {
                 ser.read(&byte, 1);
+
+                // 2026-08-03: 心跳固件适配 — 所有字节都发布到 /switch_state,
+                // 但与上一字节相同视为心跳重复, 跳过步态序列处理
+                {
+                    auto state_msg = std_msgs::msg::UInt8();
+                    state_msg.data = byte;
+                    switch_state_pub->publish(state_msg);
+                }
+                if (!first_byte && byte == last_raw_byte)
+                {
+                    rclcpp::spin_some(node);
+                    loop_rate.sleep();
+                    continue;  // 心跳重复, 不进入步态序列
+                }
+                first_byte = false;
+                last_raw_byte = byte;
 
                 // Special command 0x45 — bypass ordering
                 if (byte == 0x45)

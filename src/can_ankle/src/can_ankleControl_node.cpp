@@ -21,6 +21,7 @@ double MOTOR_DIR = 1.0;          // 电机方向: +1收线拉紧, -1放线
 double FORCE_LIMIT = 5.0;        // 力限值(/Force尺度, 超限立即停)
 double FORCE_EMERGENCY = 35.0;   // 力传感器硬限值 kg, 超限急停锁存(防鲍登线绷断)
 double TORQUE_PER_FORCE = 6.0;   // Nm per /Force单位 (台架杠杆比标定)
+double FORCE_SIGN = 1.0;         // 力传感器符号: 使紧线读数为正 (+1/-1)
 double PRELOAD_SPEED = 10.0;     // 预紧爬速 deg/s
 double PRELOAD_FORCE = 0.2;      // 预紧目标力 (旧参数, 已被min/max取代)
 double PRELOAD_FORCE_MIN = 0.5;  // 预紧目标力下限 kg (站立预紧完成后应在此范围)
@@ -31,6 +32,8 @@ double LEVEL_PITCH_LIMIT = 15.0; // 脚面水平俯仰角容差 deg
 double LEVEL_ENCODER_TARGET = 0.0;  // 脚面水平时的编码器目标角度 deg
 double LEVEL_ENCODER_LIMIT = 10.0;  // 编码器角度容差 deg
 double INIT_TIMEOUT = 30.0;      // 初始化对准总超时 s (超时告警后继续)
+double FF_GAIN = 15.0;           // 前馈增益: deg/s per Nm (开环速度前馈, 解决20Hz力反馈带宽不足)
+double PRETENSION_SPEED = 60.0;  // 0x41脚跟着地预张紧收线速度 deg/s (蹬地前线已绷紧)
 double MAX_SPEED = 180.0;        // 速度限幅 deg/s (替换V_max)
 float  g_force_value = 0.0;      // 原始力传感器值(/Force)
 
@@ -467,7 +470,7 @@ void encoderCallback(const std_msgs::msg::Float64::SharedPtr msg)
 //力传感器回调函数，接收力传感器返回值
 void torqueCallback(const std_msgs::msg::Float32::SharedPtr msg)
 {
-  g_force_value = msg->data;
+  g_force_value = msg->data * FORCE_SIGN;  // 归一化: 紧线为正值
   SensorTorque = g_force_value * TORQUE_PER_FORCE;  // Nm (台架杠杆比)
   // 硬限值急停: 超过35kg立即停机并锁存, 防鲍登线绷断
   if (fabs(g_force_value) >= FORCE_EMERGENCY)
@@ -620,11 +623,16 @@ void send_speed(double deg_s)
 }
 
 //发送扭矩跟踪转换电机速度指令函数
+// 2026-08-03: 前馈+反馈复合控制
+//   前馈: 目标扭矩直接映射速度 (FF_GAIN deg/s per Nm), 不依赖20Hz力反馈, 零滞后
+//   反馈: PID仅作小幅度修正, 补偿前馈模型误差
 void sendTorTransVelCommand(double y)
 {
     torque_value = y;
     double dt = timer.getRealTimeDt(); // 从Timer获取dt
-    adjusted_velocity = pid.compute(torque_value, SensorTorque, dt); //PID控制
+    double ff_velocity = FF_GAIN * torque_value;           // 前馈速度 (deg/s)
+    double fb_velocity = pid.compute(torque_value, SensorTorque, dt); // PID反馈修正
+    adjusted_velocity = std::clamp(ff_velocity + fb_velocity, V_min, V_max);
     velocity_value = adjusted_velocity;//发送的速度值
     send_speed(velocity_value);
 }
@@ -742,13 +750,6 @@ void commandCallback(const std_msgs::msg::UInt8::SharedPtr msg)
 {
     uint8_t command = msg->data;
 
-    // 记录原始开关状态与时间(站立确认用, 不受顺序校验影响)
-    if (command != last_switch_command)
-    {
-        last_switch_command = command;
-        last_switch_time = std::chrono::steady_clock::now();
-    }
-
     // 添加安全检查，如果指令顺序错误，立即触发归零并返回
     if(!checkCommandSequence(command))
     {
@@ -786,6 +787,18 @@ void commandCallback(const std_msgs::msg::UInt8::SharedPtr msg)
         break;
     }
     lastCommand = command;
+}
+
+//开关原始状态回调 (2026-08-03): /switch_state 心跳话题,
+//初始化站立确认用, 不受步态顺序校验影响
+void switchStateCallback(const std_msgs::msg::UInt8::SharedPtr msg)
+{
+    uint8_t state = msg->data;
+    if (state != last_switch_command)
+    {
+        last_switch_command = state;
+        last_switch_time = std::chrono::steady_clock::now();
+    }
 }
 
 //体重转换峰值扭矩函数
@@ -962,6 +975,7 @@ int main(int argc, char **argv)
   auto node = rclcpp::Node::make_shared("ankle_node");
   auto torque_pub = node->create_publisher<can_ankle::msg::Torque>("torque_info", 10); //发布各项信息
   auto command_sub = node->create_subscription<std_msgs::msg::UInt8>("command_topic", 10, commandCallback);
+  auto switch_state_sub = node->create_subscription<std_msgs::msg::UInt8>("switch_state", 10, switchStateCallback);
   auto supportime_one_sub = node->create_subscription<std_msgs::msg::Float64>("one_support_time", 10, one_support_timeCallback);
   auto supportime_two_sub = node->create_subscription<std_msgs::msg::Float64>("two_support_time", 10, two_support_timeCallback);
   auto supportime_three_sub = node->create_subscription<std_msgs::msg::Float64>("three_support_time", 10, three_support_timeCallback);
@@ -976,6 +990,7 @@ int main(int argc, char **argv)
   node->declare_parameter<double>("user_weight", 60.0);
   node->declare_parameter<double>("force_limit", 5.0);
   node->declare_parameter<double>("torque_per_force", 6.0);
+  node->declare_parameter<double>("force_sign", 1.0);
   node->declare_parameter<double>("motor_dir", 1.0);
   node->declare_parameter<double>("preload_speed", 10.0);
   node->declare_parameter<double>("preload_force", 0.2);
@@ -989,11 +1004,14 @@ int main(int argc, char **argv)
   node->declare_parameter<double>("level_encoder_target", 0.0);
   node->declare_parameter<double>("level_encoder_limit", 10.0);
   node->declare_parameter<double>("init_timeout", 30.0);
+  node->declare_parameter<double>("ff_gain", 15.0);
+  node->declare_parameter<double>("pretension_speed", 60.0);
   control_mode = node->get_parameter("control_mode").as_int();
   user_weight = node->get_parameter("user_weight").as_double();
   user_weight = std::clamp(user_weight, 40.0, 90.0);
   FORCE_LIMIT = node->get_parameter("force_limit").as_double();
   TORQUE_PER_FORCE = node->get_parameter("torque_per_force").as_double();
+  FORCE_SIGN = node->get_parameter("force_sign").as_double();
   MOTOR_DIR = node->get_parameter("motor_dir").as_double();
   PRELOAD_SPEED = node->get_parameter("preload_speed").as_double();
   PRELOAD_FORCE = node->get_parameter("preload_force").as_double();
@@ -1007,6 +1025,8 @@ int main(int argc, char **argv)
   LEVEL_ENCODER_TARGET = node->get_parameter("level_encoder_target").as_double();
   LEVEL_ENCODER_LIMIT = node->get_parameter("level_encoder_limit").as_double();
   INIT_TIMEOUT = node->get_parameter("init_timeout").as_double();
+  FF_GAIN = node->get_parameter("ff_gain").as_double();
+  PRETENSION_SPEED = node->get_parameter("pretension_speed").as_double();
   V_max = MAX_SPEED; V_min = -MAX_SPEED;
   Tor.TARGET_TORQUE_BASE = user_weight * 0.3;
   RCLCPP_INFO(node->get_logger(), "控制参数: mode=%d 体重=%.1f 力限=%.1f 急停限=%.1fkg t_per_f=%.2f motor_dir=%.0f max_speed=%.1f",
@@ -1072,7 +1092,7 @@ int main(int argc, char **argv)
               ST.initialMotorRecorded = true;
           }
         }
-        if (!isnan(Enc.initialMotorPosition_one) && !isnan(Enc.initialMotorPosition_two)) 
+        if (!isnan(Enc.initialMotorPosition_one) && !isnan(Enc.initialMotorPosition_two))
         {
           if (ST.RetrunInitial)
           {
@@ -1084,6 +1104,20 @@ int main(int argc, char **argv)
               y = 0;
               sendVelocityCommand(y);
             }
+          }
+        }
+        // 2026-08-03: 0x41预张紧 — 脚跟着地即慢速收线,
+        // 使鲍登线在蹬地(0x43)前已绷紧, 消除助力启动延迟
+        // (不在回初始位置过程中才生效)
+        if (!ST.RetrunInitial)
+        {
+          if (g_force_value < PRELOAD_FORCE_MAX)
+          {
+            send_speed(PRETENSION_SPEED);   // 线未绷紧 → 慢速收线
+          }
+          else
+          {
+            send_speed(0.0);                // 已绷紧 → 保持
           }
         }
     }
