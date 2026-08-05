@@ -1,5 +1,7 @@
 #include "can_ankle/msg/torque.hpp"
 #include "can_ankle/can_ankle_node.h"
+#include <fstream>
+#include <thread>
 // controlcan.h replaced by can subprocess in header
 
 // 参数宏定义
@@ -34,11 +36,31 @@ double LEVEL_ENCODER_LIMIT = 10.0;  // 编码器角度容差 deg
 double INIT_TIMEOUT = 30.0;      // 初始化对准总超时 s (超时告警后继续)
 double FF_GAIN = 15.0;           // 前馈增益: deg/s per Nm (开环速度前馈, 解决20Hz力反馈带宽不足)
 double PRETENSION_SPEED = 60.0;  // 0x41脚跟着地预张紧收线速度 deg/s (蹬地前线已绷紧)
+double DRIVE_FORCE_CEIL = 10.0;  // 2026-08-05: 驱动阶段收线力上限 kg, 超过则禁止继续收线(只许放线)
+                                 // 软限/硬限反应不过来: 实测张力可在50ms内从20冲到37kg
+double SWING_RELEASE_GAIN = 40.0; // 2026-08-05: 摆动相放线增益 deg/s per kg (张力越大放线越快, 线松自停)
+double PRETENSION_FAST_SPEED = 300.0; // 2026-08-05: 预张紧快速档 deg/s (力<1kg时全速抢收松弛)
 double MAX_SPEED = 180.0;        // 速度限幅 deg/s (替换V_max)
 float  g_force_value = 0.0;      // 原始力传感器值(/Force)
 
 // 急停锁存: 力超过 FORCE_EMERGENCY 后只发零速, 需重启恢复
 bool emergency_stop = false;
+// 2026-08-05: 力传感器看门狗 — /Force 断流时所有力保护(软限/硬限/天花板)全部失效,
+// 且力控会误判线松而不停收线 (2026-08-05 实测: 传感器无数据时初始化持续收线险些绷断鲍登线)
+std::chrono::steady_clock::time_point last_force_time = std::chrono::steady_clock::now();
+bool force_ever_received = false;
+// 2026-08-05: 手动确认闸门排水标志 — true 时丢弃 /command_topic 消息
+// (闸门等待期间积压的过期指令, 直接处理会误判顺序错误并可能触发一次误动作)
+bool ignore_commands = false;
+
+// 力传感器数据是否故障 (启动宽限 5s, 之后 0.5s 无更新即故障; /Force 正常 20Hz)
+bool forceDataFault()
+{
+    double stale_s = std::chrono::duration<double>(
+        std::chrono::steady_clock::now() - last_force_time).count();
+    if (!force_ever_received) return stale_s > 5.0;
+    return stale_s > 0.5;
+}
 
 // 足底开关原始状态跟踪(用于站立确认, 不受指令顺序校验影响)
 uint8_t last_switch_command = 0;                            // 最近一次收到的开关指令
@@ -138,7 +160,7 @@ public:
     double Encoder_Value = 0;     //编码器角度值
     double initialEncoderValue = 0;       // 初始编码器位置
     double position_angle = 0;    //转换位置控制时的关节角度
-    const int ENCODER_SAFE_LIMIT = 45;      // 编码器安全阈值
+    const int ENCODER_SAFE_LIMIT = 75;      // 编码器安全阈值 (2026-08-05: 45→75, 实测正常步态跖屈可达-51°, 原值误触发归零并关闭节点)
     double initialMotorPosition_one = NAN;  // 单数次支撑相开始时电机的位置
     double initialMotorPosition_two = NAN;  // 双数次支撑相开始时电机的位置
     double initialMotorPosition = 0;  //支撑相开始时电机位置
@@ -470,6 +492,8 @@ void encoderCallback(const std_msgs::msg::Float64::SharedPtr msg)
 //力传感器回调函数，接收力传感器返回值
 void torqueCallback(const std_msgs::msg::Float32::SharedPtr msg)
 {
+  last_force_time = std::chrono::steady_clock::now();  // 看门狗喂狗
+  force_ever_received = true;
   g_force_value = msg->data * FORCE_SIGN;  // 归一化: 紧线为正值
   SensorTorque = g_force_value * TORQUE_PER_FORCE;  // Nm (台架杠杆比)
   // 硬限值急停: 超过35kg立即停机并锁存, 防鲍登线绷断
@@ -633,6 +657,12 @@ void sendTorTransVelCommand(double y)
     double ff_velocity = FF_GAIN * torque_value;           // 前馈速度 (deg/s)
     double fb_velocity = pid.compute(torque_value, SensorTorque, dt); // PID反馈修正
     adjusted_velocity = std::clamp(ff_velocity + fb_velocity, V_min, V_max);
+    // 2026-08-05: 驱动阶段力天花板 — 张力已超上限时禁止继续收线(只许放线),
+    // 防止张力上冲速度快过软限/硬限反应 (2026-08-05 实测 50ms 内 20→37kg)
+    if (g_force_value >= DRIVE_FORCE_CEIL && adjusted_velocity > 0.0)
+    {
+        adjusted_velocity = 0.0;
+    }
     velocity_value = adjusted_velocity;//发送的速度值
     send_speed(velocity_value);
 }
@@ -642,6 +672,24 @@ void sendVelocityCommand(double y)
 {
   velocity_value = y;
   send_speed(velocity_value);
+}
+
+// 2026-08-05: 预张紧步进 (两档力门控) — 0x41~0x43 期间持续调用,
+// 力<1kg 全速抢收松弛, 1~2kg 慢速精调, >=2kg 停
+void pretensionStep()
+{
+  if (g_force_value < 1.0)
+  {
+    sendVelocityCommand(PRETENSION_FAST_SPEED);
+  }
+  else if (g_force_value < PRELOAD_FORCE_MAX)
+  {
+    sendVelocityCommand(PRETENSION_SPEED);
+  }
+  else
+  {
+    sendVelocityCommand(0.0);
+  }
 }
 
 //坡度储存函数
@@ -750,15 +798,19 @@ void commandCallback(const std_msgs::msg::UInt8::SharedPtr msg)
 {
     uint8_t command = msg->data;
 
-    // 添加安全检查，如果指令顺序错误，立即触发归零并返回
+    // 2026-08-05: 闸门排水期间丢弃指令
+    if (ignore_commands) return;
+
+    // 2026-08-05: 顺序错误不再触发归零 — 归零以开机时关节角度为目标,
+    // 穿戴行走时关节由人主导永远回不去, 会把主循环卡死 (实测电机因此全程无反应)。
+    // 改为回站立模式并重新同步: lastCommand 清零后下一条指令按首条处理,
+    // 步态随下一个 0x41 自动恢复
     if(!checkCommandSequence(command))
     {
-        // 设置归零标志
-        ST.need_homing = true;
-        // 设置为站立模式（停止驱动）
         currentDriveMode = STAND_MODE;
-        RCLCPP_ERROR(rclcpp::get_logger("ankle"), "安全限制触发：指令顺序错误！触发归零程序。");
-        return; // 直接返回，不处理当前指令
+        lastCommand = 0;
+        RCLCPP_WARN(rclcpp::get_logger("ankle"), "指令顺序错误, 回站立模式等待重新同步 (下一个0x41恢复)");
+        return;
     }
     
     switch (command) 
@@ -890,6 +942,16 @@ bool runInitialAlignment(const rclcpp::Node::SharedPtr& node)
     {
         rclcpp::spin_some(node);
 
+        // 2026-08-05: 力传感器看门狗 — 断流时力控会误判线松而不停收线, 必须立即停
+        if (forceDataFault())
+        {
+            send_speed(0.0);
+            emergency_stop = true;
+            RCLCPP_ERROR(node->get_logger(),
+                "初始化期间力传感器数据中断! 已停止收线, 请检查传感器接线/电源后重启");
+            return false;
+        }
+
         // ── 力控: 维持力传感器在目标区间 ──
         if (g_force_value < PRELOAD_FORCE_MIN)
             send_speed(PRELOAD_SPEED);        // 线太松 → 收线
@@ -1006,6 +1068,9 @@ int main(int argc, char **argv)
   node->declare_parameter<double>("init_timeout", 30.0);
   node->declare_parameter<double>("ff_gain", 15.0);
   node->declare_parameter<double>("pretension_speed", 60.0);
+  node->declare_parameter<double>("drive_force_ceil", 10.0);
+  node->declare_parameter<double>("swing_release_gain", 40.0);
+  node->declare_parameter<double>("pretension_fast_speed", 300.0);
   control_mode = node->get_parameter("control_mode").as_int();
   user_weight = node->get_parameter("user_weight").as_double();
   user_weight = std::clamp(user_weight, 40.0, 90.0);
@@ -1027,15 +1092,20 @@ int main(int argc, char **argv)
   INIT_TIMEOUT = node->get_parameter("init_timeout").as_double();
   FF_GAIN = node->get_parameter("ff_gain").as_double();
   PRETENSION_SPEED = node->get_parameter("pretension_speed").as_double();
+  DRIVE_FORCE_CEIL = node->get_parameter("drive_force_ceil").as_double();
+  SWING_RELEASE_GAIN = node->get_parameter("swing_release_gain").as_double();
+  PRETENSION_FAST_SPEED = node->get_parameter("pretension_fast_speed").as_double();
   V_max = MAX_SPEED; V_min = -MAX_SPEED;
   Tor.TARGET_TORQUE_BASE = user_weight * 0.3;
-  RCLCPP_INFO(node->get_logger(), "控制参数: mode=%d 体重=%.1f 力限=%.1f 急停限=%.1fkg t_per_f=%.2f motor_dir=%.0f max_speed=%.1f",
-              control_mode, user_weight, FORCE_LIMIT, FORCE_EMERGENCY, TORQUE_PER_FORCE, MOTOR_DIR, MAX_SPEED);
+  RCLCPP_INFO(node->get_logger(), "控制参数: mode=%d 体重=%.1f 力限=%.1f 急停限=%.1fkg 驱动收线上限=%.1fkg t_per_f=%.2f motor_dir=%.0f max_speed=%.1f ff=%.1f",
+              control_mode, user_weight, FORCE_LIMIT, FORCE_EMERGENCY, DRIVE_FORCE_CEIL, TORQUE_PER_FORCE, MOTOR_DIR, MAX_SPEED, FF_GAIN);
 
   pid.resetIntegral();//清除pd积分项
 
   //初始化can节点 (TCP连接can_bridge.py, 已完成使能)
   Init_Can();
+  // 注: 该驱动器 CAN 协议为只写 (无 SDO 响应帧), 无法读回参数;
+  // 轮廓加减速已在 can_init() 中显式设置为 50000 (与 motor_remote.py 一致)
 
   // 2026-08-03: 初始化对准 — 力控维持0.5~2.0kg随脚放平收放线,
   // 开关闭合+力正常+IMU水平+编码器正常 全部满足持续2s后初始化完毕
@@ -1053,6 +1123,46 @@ int main(int argc, char **argv)
 
   rclcpp::WallRate loop_rate(std::chrono::milliseconds(5));  // 200Hz
   signal(SIGINT, signalHandler);
+
+  // 2026-08-05: 手动确认闸门 — 初始化(预紧)完成后需操作者在终端按 Enter
+  // 才进入主循环, 防止未准备好时步态指令误触发电机动作
+  {
+    std::cout << "========================================" << std::endl;
+    std::cout << "  预紧/初始化流程已结束, 电机保持零速待命" << std::endl;
+    std::cout << "  确认穿戴就绪后, 按 Enter 进入主循环..." << std::endl;
+    std::cout << "========================================" << std::endl;
+    send_speed(0.0);
+    std::string line;
+    // ros2 launch 给子进程的 stdin 是管道(按 Enter 到不了这里),
+    // 直接读控制终端 /dev/tty; 打不开(无终端环境)则退回 std::cin
+    std::ifstream tty("/dev/tty");
+    if (tty.is_open())
+    {
+        std::getline(tty, line);
+    }
+    else
+    {
+        std::getline(std::cin, line);
+    }
+    RCLCPP_INFO(node->get_logger(), "操作者已确认, 进入主循环");
+
+    // 丢弃闸门等待期间订阅队列里积压的过期指令 (~200ms 排水),
+    // 并重置顺序校验状态, 防止陈旧指令混合新指令误判顺序错误
+    ignore_commands = true;
+    for (int i = 0; i < 20 && rclcpp::ok(); i++)
+    {
+        rclcpp::spin_some(node);
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    ignore_commands = false;
+    lastCommand = 0;
+
+    std::cout << "========================================" << std::endl;
+    std::cout << "  已进入主循环 (200Hz), 步态助力已激活" << std::endl;
+    std::cout << "  下方每秒刷新一次状态, Ctrl+C 停止" << std::endl;
+    std::cout << "========================================" << std::endl;
+  }
+
   RCLCPP_INFO(node->get_logger(), "进入主循环, 初始模式=STAND_MODE");
   int loop_count = 0;
   //发送指令
@@ -1065,10 +1175,21 @@ int main(int argc, char **argv)
 
     double y = 0.0;
 
+    // 2026-08-05: 力传感器看门狗 — 断流即锁停 (所有力保护在断流时失效, 必须按急停处理)
+    if (!emergency_stop && forceDataFault())
+    {
+        emergency_stop = true;
+        currentDriveMode = STAND_MODE;
+        send_speed(0.0);
+        RCLCPP_ERROR(rclcpp::get_logger("ankle"),
+                     "力传感器数据中断 (>0.5s 无更新)! 电机已锁停, 请检查传感器接线/电源后重启");
+    }
+
     // 急停锁存: 力超硬限值后所有状态失效, 只发零速
     if (emergency_stop)
     {
         send_speed(0.0);
+        velocity_value = 0.0;   // 状态行显示真实指令
     }
     // 状态机核心
     else if (currentDriveMode == TORQUE_MODE)
@@ -1109,28 +1230,19 @@ int main(int argc, char **argv)
         // 2026-08-03: 0x41预张紧 — 脚跟着地即慢速收线,
         // 使鲍登线在蹬地(0x43)前已绷紧, 消除助力启动延迟
         // (不在回初始位置过程中才生效)
+        // 2026-08-05: 两档力门控, 详见 pretensionStep()
         if (!ST.RetrunInitial)
         {
-          if (g_force_value < PRELOAD_FORCE_MAX)
-          {
-            send_speed(PRETENSION_SPEED);   // 线未绷紧 → 慢速收线
-          }
-          else
-          {
-            send_speed(0.0);                // 已绷紧 → 保持
-          }
+          pretensionStep();
         }
     }
 
-    /*else if (currentDriveMode ==  PRE_TORQUE_MODE)
+    else if (currentDriveMode == PRE_TORQUE_MODE)
     {
-      updateTorquePeak();
-      Tor.TARGET_TORQUE_PEAK = updateTorquePeak();
-      double elapsed = timer.getElapsedTime();
-      Tor.PRE_TORQUE = elapsed * Tor.TARGET_TORQUE_PEAK / 3;
-      adjusted_torque = Tor.PRE_TORQUE;
-      sendVelocityCommand(adjusted_torque);
-    }*/
+      // 2026-08-05: 全掌支撑窗口继续预张紧抢收松弛 (此前改零速导致
+      // 0x42~0x43 期间松弛无人收, 蹬地时线仍全松)
+      pretensionStep();
+    }
 
     else if (currentDriveMode == TORQUE_DRIVE_MODE) 
     {
@@ -1171,7 +1283,7 @@ int main(int argc, char **argv)
     }
     else if (currentDriveMode == STAND_MODE) 
     {
-        send_speed(0.0);
+        sendVelocityCommand(0.0);
     }
     //发布消息
     can_ankle::msg::Torque torque_msg;
@@ -1181,9 +1293,21 @@ int main(int argc, char **argv)
     torque_msg.return_velocity = Output_VelocityValue;
     torque_msg.return_torque_value = Output_TorqueValue;
     torque_pub->publish(torque_msg);
-    if (++loop_count % 200 == 1) { // 每秒打印一次
-      RCLCPP_INFO(node->get_logger(), "主循环运行中 count=%d mode=%d force=%.2f",
-                  loop_count, (int)currentDriveMode, SensorTorque);
+    if (++loop_count % 200 == 1) { // 每秒打印一次状态, 便于操作者在终端观察
+      // 2026-08-05: 可读状态行 (模式中文名 + 力 + 速度指令), 替代原 mode 数字
+      static const char* mode_names[] = {"摆动相", "预张紧", "全掌支撑", "蹬地助力", "站立"};
+      int m = (int)currentDriveMode;
+      if (m < 0 || m > 4) m = 4;
+      if (emergency_stop)
+      {
+        std::cout << "[状态] *** 急停锁存 *** 力=" << g_force_value << " kg (需重启恢复)" << std::endl;
+      }
+      else
+      {
+        std::cout << "[状态] 模式=" << mode_names[m]
+                  << "  力=" << g_force_value << " kg"
+                  << "  速度指令=" << velocity_value << " °/s" << std::endl;
+      }
     }
   }
   if (slope_file.is_open())
@@ -1428,46 +1552,16 @@ double TargetTorque()
 //摆动相实时跟踪函数
 double calculateTargetPosition() 
 {
-    // 获取当前时间和位置
-    auto now = high_resolution_clock::now();
-    double theta_m = Enc.position_angle; // 当前编码器测量位置
-    double theta_d = Enc.initialEncoderValue; // 期望位置(编码器启动时的位置)
-
-    // 计算时间差dt（单位：秒）
-    double dt = duration_cast<duration<double>>(now - pos_controller.prev_time).count();
-    if (dt < 1e-6) dt = 1e-6; // 防止除以零
-
-    // 计算速度：当前速度 = (当前位置 - 上一时刻位置) / dt
-    double theta_m_dot = (theta_m - pos_controller.prev_theta_m) / dt;
-    //将拉力传感器与摆动相位置结合
-    double forcesensor = SensorTorque / 0.12;
-    double theta_d_dot = 0;
-    if (forcesensor > 0)
+    // 2026-08-05: 摆动相放线改为纯力比例控制。
+    // 原逻辑用编码器位置门控 (theta_d < theta_m 才放线), 但当前装置摆动相
+    // 关节角比初始值更负, 条件永不成立 — 实测摆动相净放线≈0, 线上挂10-16kg拖拽脚。
+    // 新逻辑不依赖方向假设: 线有张力就正比放线, 线松(力≈0)自停, 只许放不许收
+    double v = 0.0;
+    if (g_force_value > 0.3)
     {
-      if(theta_d < theta_m)
-      {
-        theta_d_dot = pos_controller.K_theta * (theta_d - theta_m) * forcesensor * 1.0;
-      }
-      else
-      {
-         theta_d_dot = 0;
-      }
+        v = -SWING_RELEASE_GAIN * g_force_value;
     }
-    else
-    {
-      theta_d_dot = 0;
-    }
-
-    // 根据公式计算期望速度
-    
-    theta_d_dot = std::clamp(theta_d_dot , V_min , V_max);
-
-    // 更新上一时刻的数据
-    pos_controller.prev_theta_m = theta_m;
-    pos_controller.prev_time = now;
-
-    // 返回控制量（期望速度）
-    return theta_d_dot;
+    return std::clamp(v, -300.0, 0.0);
 }
 
 //进入支撑相进行位置补偿

@@ -103,7 +103,18 @@ int main(int argc, char **argv)
             {
                 ser.read(&byte, 1);
 
-                // 2026-08-03: 心跳固件适配 — 所有字节都发布到 /switch_state,
+                // 2026-08-05: 合法指令集校验 — 非法字节(线路噪声/帧错误)只告警,
+                // 不更新 last_raw_byte、不发布, 避免污染心跳去重基准:
+                // 否则干扰字节会让随后的心跳重发被误判为"新跳变", 触发 resetToStart 打断步态序列
+                if (byte < 0x41 || byte > 0x45)
+                {
+                    RCLCPP_WARN(node->get_logger(), "Invalid byte 0x%02X ignored (not in 0x41~0x45)", byte);
+                    rclcpp::spin_some(node);
+                    loop_rate.sleep();
+                    continue;
+                }
+
+                // 2026-08-03: 心跳固件适配 — 合法字节都发布到 /switch_state,
                 // 但与上一字节相同视为心跳重复, 跳过步态序列处理
                 {
                     auto state_msg = std_msgs::msg::UInt8();
@@ -239,10 +250,8 @@ int main(int argc, char **argv)
                         resetToStart();
                     }
                 }
-                else
-                {
-                    RCLCPP_WARN(node->get_logger(), "Unknown command: 0x%02X", byte);
-                }
+                // 注: 0x41~0x44 均由上方分支处理, 0x45 提前 continue,
+                // 非法字节已在读取处被过滤, 此处不再需要 Unknown command 分支
 
                 // Publish valid command if received
                 if (valid_command_received)

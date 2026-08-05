@@ -9,6 +9,7 @@
 #include <serial/serial.h>
 #include <fstream>
 #include <iostream>
+#include <cstring>
 #include <cmath>
 #include <chrono>
 #include <ratio>
@@ -105,6 +106,9 @@ vector<uint8_t> speed_to_command(double speed);
 // ====== CAN native libcontrolcan implementation ======
 static bool can_opened = false;
 static std::recursive_mutex can_mutex;
+// 2026-08-05: SDO 响应捕获 (启动自诊断用)
+static volatile bool sdo_resp_ready = false;
+static uint8_t sdo_resp_data[8] = {0};
 #define CAN_DEV_TYPE VCI_USBCAN2
 #define CAN_DEV_IND  0
 #define CAN_CH       0
@@ -141,6 +145,11 @@ inline void can_init(void) {
     BYTE nmt[]={0x80,0x53}; can_send(0x000,nmt,2);
     usleep(200000);
     BYTE set_pv[]={0x2F,0x60,0x60,0x00,0x03,0x00,0x00,0x00}; can_send(0x653,set_pv,8); usleep(50000);
+    // 2026-08-05: 显式设置轮廓加减速 — 与 motor_remote.py 一致 (50000)。
+    // 驱动器默认值太温柔时 PV 模式下电机缓慢爬坡, 200Hz指令再快也跟不上
+    // (实测: 蹬地指令500°/s收线76mm, 线张力纹丝不动)
+    BYTE set_acc[]={0x23,0x83,0x60,0x00,0x50,0xC3,0x00,0x00}; can_send(0x653,set_acc,8); usleep(50000);
+    BYTE set_dec[]={0x23,0x84,0x60,0x00,0x50,0xC3,0x00,0x00}; can_send(0x653,set_dec,8); usleep(50000);
     BYTE shutdown[]={0x2B,0x40,0x60,0x00,0x06,0x00,0x00,0x00}; can_send(0x653,shutdown,8); usleep(80000);
     BYTE swon[]={0x2B,0x40,0x60,0x00,0x07,0x00,0x00,0x00}; can_send(0x653,swon,8); usleep(80000);
     BYTE enable[]={0x2B,0x40,0x60,0x00,0x0F,0x00,0x00,0x00}; can_send(0x653,enable,8); usleep(80000);
@@ -194,8 +203,17 @@ inline void *receive_func(void *param) {
     (void)param;
     while (rclcpp::ok()) {
         DWORD id; BYTE data[8];
-        int len = can_recv(&id, data, 10);  // 短超时避免阻塞主线程发送
-        if (len <= 0) continue;
+        // 2026-08-05: 改为非阻塞接收 + 无数据时让出 1ms。
+        // 原 10ms 阻塞接收在持锁状态下空调用, 解锁-重锁间隙为纳秒级,
+        // 主线程 can_send 几乎永远抢不到 can_mutex → 主循环被饿死 (实测跌至 2.5Hz)
+        int len = can_recv(&id, data, 0);
+        if (len <= 0) { usleep(1000); continue; }
+        // 2026-08-05: 捕获 SDO 响应 (0x580+0x53), 供启动自诊断读取驱动器参数
+        if (id == 0x00000583 && len >= 8) {
+            memcpy((void*)sdo_resp_data, data, 8);
+            sdo_resp_ready = true;
+            continue;
+        }
         if (id == 0x000001D3 && len >= 8) {
             uint16_t ct = (data[3]<<8)|data[2];
             uint32_t cp = (data[7]<<24)|(data[6]<<16)|(data[5]<<8)|data[4];

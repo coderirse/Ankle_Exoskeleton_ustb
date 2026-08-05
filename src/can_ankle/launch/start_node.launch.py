@@ -16,7 +16,7 @@ def generate_launch_description():
             executable='serial_encoder_node',
             name='serial_encoder_node',
             output='screen',
-            parameters=[{'port': '/dev/ttyUSB2'}],
+            parameters=[{'port': '/dev/ankle_encoder'}],  # 2026-08-05: udev 规则已修复, 恢复符号链接
         ),
         Node(
             package='can_ankle',
@@ -36,10 +36,11 @@ def generate_launch_description():
                     parameters=[{
                         'control_mode': 1,
                         'user_weight': 60.0,
-                        'force_limit': 20.0,
+                        'force_limit': 25.0,
                         'force_emergency': 35.0,
                         'force_sign': 1.0,
                         'motor_dir': 1.0,
+                        'torque_per_force': 1.18,
                         'preload_speed': 10.0,
                         'preload_force': 0.2,
                         'preload_force_min': 0.5,
@@ -52,6 +53,7 @@ def generate_launch_description():
                         'init_timeout': 30.0,
                         'ff_gain': 15.0,
                         'pretension_speed': 60.0,
+                        'drive_force_ceil': 22.0,
                         'max_speed': 600.0,
                     }],
                 ),

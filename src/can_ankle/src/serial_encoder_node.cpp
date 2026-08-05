@@ -67,7 +67,7 @@ int main(int argc, char** argv)
                 encodervalue = encodervalue - 360;
             }
 
-            printf("编码器关节角度: %.2f\n", encodervalue);
+            // 2026-08-05: 不再打印到终端 (200Hz 刷屏淹没控制状态), 角度仅从 /angle 话题获取
 
             auto msg = std_msgs::msg::Float64();
             msg.data = encodervalue;
