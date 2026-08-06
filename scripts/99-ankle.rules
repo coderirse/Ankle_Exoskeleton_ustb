@@ -1,11 +1,12 @@
 # 踝关节外骨骼 USB 设备持久化映射
 # 安装: sudo cp scripts/99-ankle.rules /etc/udev/rules.d/ && sudo udevadm control --reload-rules && sudo udevadm trigger
 #
-# 当前拓扑（2026-08-05 更新：编码器换到 hub 端口 2.4）：
-#   /dev/ankle_encoder -> ttyUSB0, USB path 1-2.4 (CH340)
-#   /dev/ankle_switch  -> ttyUSB1, USB path 1-6.1 (CH340, 足底开关)
-#   /dev/ankle_force   -> ttyUSB2, USB path 1-6.4 (CH340, 力传感器)
+# 当前拓扑（2026-08-06 更新：力传感器换到 hub 端口 6.2）：
+#   /dev/ankle_switch  -> USB path 1-6.1 (CH340, 足底开关 STM32 心跳固件)
+#   /dev/ankle_encoder -> USB path 1-2.4 (CH340, 编码器 Modbus 9600)
+#   /dev/ankle_force   -> USB path 1-6.2 (CH340, 力传感器 Modbus 19200)
 #   /dev/ankle_can     -> CANalyst-II (04d8:0053)
+#   IMU                -> /dev/ttyACM0 (1a86:55d4, fdilink, 未固定符号链接)
 
 # CANalyst-II USB-CAN adapter
 SUBSYSTEM=="usb", ATTR{idVendor}=="04d8", ATTR{idProduct}=="0053", MODE="0660", GROUP="plugdev", SYMLINK+="ankle_can"
@@ -16,5 +17,5 @@ SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", ENV{ID_PATH
 # 足底开关 (CH340, USB hub 1-6 port 1)
 SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", ENV{ID_PATH_TAG}=="pci-0000_00_14_0-usb-0_6_1_1_0", SYMLINK+="ankle_switch"
 
-# 力传感器 (CH340, USB hub 1-6 port 4)
-SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", ENV{ID_PATH_TAG}=="pci-0000_00_14_0-usb-0_6_4_1_0", SYMLINK+="ankle_force"
+# 力传感器 (CH340, USB hub 1-6 port 2)
+SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", ENV{ID_PATH_TAG}=="pci-0000_00_14_0-usb-0_6_2_1_0", SYMLINK+="ankle_force"
