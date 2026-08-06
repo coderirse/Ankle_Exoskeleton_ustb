@@ -15,3 +15,6 @@ __pycache__/
 .DS_Store
 Thumbs.db
 docs/WORK_LOG_2025-07-05.md
+
+# 测试自动记录 (start_test.sh)
+data/test_logs/
