@@ -1,0 +1,71 @@
+[INFO] [launch]: All log files can be found below /home/ler/.ros/log/2026-08-06-21-23-02-386418-ler-ASUS-TUF-Gaming-F16-FX607JV-FX607JV-38639
+[INFO] [launch]: Default logging verbosity is set to INFO
+[INFO] [serial_ForceSensor_node-1]: process started with pid [38641]
+[INFO] [serial_encoder_node-2]: process started with pid [38643]
+[INFO] [serial_sendCommand_node-3]: process started with pid [38645]
+[serial_ForceSensor_node-1] [INFO] [1786022582.420357608] [serial_ForceSensor_node]: Force sensor serial port initialized: /dev/ankle_force @ 19200
+[serial_encoder_node-2] [INFO] [1786022582.423356641] [serial_encoder_node]: Serial Port initialized (Modbus RTU, 9600) on /dev/ankle_encoder
+[serial_sendCommand_node-3] system clock resolution:1e-09seconds
+[serial_sendCommand_node-3] [INFO] [1786022582.426467861] [serial_sendCommand_node]: Serial port initialized on /dev/ankle_switch
+[serial_sendCommand_node-3] [WARN] [1786022582.426524963] [rcl.logging_rosout]: Publisher already registered for provided node name. If this is due to multiple nodes with the same name then all logs for that logger name will go out over the existing publisher. As soon as any node with that name is destructed it will unregister the publisher, preventing any further logs for that name from being published on the rosout topic.
+[serial_sendCommand_node-3] [WARN] [1786022582.431691314] [serial_sendCommand_node]: Sequence broken, waiting for next 0x41 to restart
+[serial_sendCommand_node-3] [WARN] [1786022582.774674922] [serial_sendCommand_node]: Sequence broken, waiting for next 0x41 to restart
+[INFO] [can_ankleControl_node-4]: process started with pid [38702]
+[can_ankleControl_node-4] [INFO] [1786022584.775509505] [can_ankleControl_node]: 控制参数: mode=1 体重=60.0 力限=25.0 急停限=35.0kg 驱动收线上限=22.0kg t_per_f=1.18 motor_dir=1 max_speed=600.0 ff=15.0
+[can_ankleControl_node-4] Resetting Chuangxin Tech USBCAN/CANalyst-II ... ok
+[can_ankleControl_node-4] [can] native CAN opened, motor enabled
+[can_ankleControl_node-4] [INFO] [1786022586.465033409] [can_ankleControl_node]: 初始化对准: 力控维持 0.5~2.5 kg, 等待 [双开关闭合] 持续 2.0 s...
+[can_ankleControl_node-4] [INFO] [1786022586.465896611] [ankle]: Initial encoder position: -7.42
+[can_ankleControl_node-4] 
+[serial_sendCommand_node-3] [WARN] [1786022588.073113438] [serial_sendCommand_node]: Sequence broken, waiting for next 0x41 to restart
+[serial_sendCommand_node-3] 接收指令：65
+[serial_sendCommand_node-3] 摆动相时间：13656.437977107
+[serial_sendCommand_node-3] [INFO] [1786022588.787270841] [serial_sendCommand_node]: Swing Phase time: 13656.437977107 seconds
+[serial_sendCommand_node-3] [INFO] [1786022588.787331008] [serial_sendCommand_node]: FULL_SUPPORT started
+[can_ankleControl_node-4] success: device 04D8:0053 opened
+[can_ankleControl_node-4] success: set configuration #1
+[can_ankleControl_node-4] success: claim_interface #0
+[serial_sendCommand_node-3] [WARN] [1786022589.440603309] [serial_sendCommand_node]: Sequence broken, waiting for next 0x41 to restart
+[serial_sendCommand_node-3] [WARN] [1786022590.652080269] [serial_sendCommand_node]: Sequence broken, waiting for next 0x41 to restart
+[serial_sendCommand_node-3] 接收指令：65
+[serial_sendCommand_node-3] 摆动相时间：2.534722086
+[serial_sendCommand_node-3] [INFO] [1786022591.321962909] [serial_sendCommand_node]: Swing Phase time: 2.534722086 seconds
+[serial_sendCommand_node-3] [INFO] [1786022591.322019593] [serial_sendCommand_node]: FULL_SUPPORT started
+[serial_sendCommand_node-3] 接收指令：66
+[serial_sendCommand_node-3] [INFO] [1786022591.532023191] [serial_sendCommand_node]: Support Phase One time: 0.210039568 seconds
+[serial_sendCommand_node-3] [INFO] [1786022591.532070540] [serial_sendCommand_node]: TENSION_TORQUE started
+[serial_sendCommand_node-3] 接收指令：65
+[serial_sendCommand_node-3] 摆动相时间：0.301983460
+[serial_sendCommand_node-3] [INFO] [1786022591.834002527] [serial_sendCommand_node]: Swing Phase time: 0.301983460 seconds
+[serial_sendCommand_node-3] [INFO] [1786022591.834052509] [serial_sendCommand_node]: FULL_SUPPORT started
+[can_ankleControl_node-4] Slope: 0
+[serial_sendCommand_node-3] 接收指令：66
+[serial_sendCommand_node-3] [INFO] [1786022592.066000216] [serial_sendCommand_node]: Support Phase One time: 0.232000738 seconds
+[serial_sendCommand_node-3] [INFO] [1786022592.066053113] [serial_sendCommand_node]: TENSION_TORQUE started
+[serial_sendCommand_node-3] 接收指令：65
+[serial_sendCommand_node-3] 摆动相时间：0.638000435
+[serial_sendCommand_node-3] [INFO] [1786022592.704008936] [serial_sendCommand_node]: Swing Phase time: 0.638000435 seconds
+[serial_sendCommand_node-3] [INFO] [1786022592.704075148] [serial_sendCommand_node]: FULL_SUPPORT started
+[can_ankleControl_node-4] Slope: 0
+[serial_sendCommand_node-3] 接收指令：66
+[serial_sendCommand_node-3] [INFO] [1786022592.907989274] [serial_sendCommand_node]: Support Phase One time: 0.203986586 seconds
+[serial_sendCommand_node-3] [INFO] [1786022592.908023210] [serial_sendCommand_node]: TENSION_TORQUE started
+[can_ankleControl_node-4] Slope: 0
+[can_ankleControl_node-4] [INFO] [1786022593.304635562] [can_ankleControl_node]: 预紧中: 开关[OK] 力[1.65 kg]
+[can_ankleControl_node-4] [INFO] [1786022593.834901750] [can_ankleControl_node]: 预紧中: 开关[OK] 力[1.36 kg]
+[serial_sendCommand_node-3] 接收指令：65
+[serial_sendCommand_node-3] 摆动相时间：1.270069463
+[serial_sendCommand_node-3] [INFO] [1786022594.178066404] [serial_sendCommand_node]: Swing Phase time: 1.270069463 seconds
+[serial_sendCommand_node-3] [INFO] [1786022594.178143712] [serial_sendCommand_node]: FULL_SUPPORT started
+[can_ankleControl_node-4] [INFO] [1786022594.366577721] [can_ankleControl_node]: 预紧中: 开关[等待] 力[1.11 kg]
+[can_ankleControl_node-4] [INFO] [1786022594.906863012] [can_ankleControl_node]: 预紧中: 开关[等待] 力[2.05 kg]
+[can_ankleControl_node-4] [INFO] [1786022595.438941676] [can_ankleControl_node]: 预紧中: 开关[等待] 力[2.04 kg]
+[can_ankleControl_node-4] [INFO] [1786022595.967074926] [can_ankleControl_node]: 预紧中: 开关[等待] 力[2.82 kg]
+[can_ankleControl_node-4] [INFO] [1786022596.493387762] [can_ankleControl_node]: 预紧中: 开关[等待] 力[2.26 kg]
+[serial_sendCommand_node-3] 接收指令：66
+[serial_sendCommand_node-3] [INFO] [1786022596.972003478] [serial_sendCommand_node]: Support Phase One time: 2.793935238 seconds
+[serial_sendCommand_node-3] [INFO] [1786022596.972068144] [serial_sendCommand_node]: TENSION_TORQUE started
+[can_ankleControl_node-4] Slope: 0
+[can_ankleControl_node-4] [INFO] [1786022597.019889521] [can_ankleControl_node]: 预紧中: 开关[OK] 力[3.09 kg]
+[can_ankleControl_node-4] [INFO] [1786022597.554434857] [can_ankleControl_node]: 预紧中: 开关[OK] 力[7.37 kg]
+[can_ankleControl_node-4] [INFO] [1786022598.092630540] [can_ankleControl_node]: 预紧中: 开关[OK] 力[4.52 kg]

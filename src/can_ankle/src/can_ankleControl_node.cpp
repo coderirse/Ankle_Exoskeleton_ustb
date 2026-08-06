@@ -49,6 +49,7 @@ float  g_force_value = 0.0;      // 原始力传感器值(/Force)
 
 // 急停锁存: 力超过 FORCE_EMERGENCY 后只发零速, 需重启恢复
 bool emergency_stop = false;
+std::chrono::steady_clock::time_point emergency_time;  // 2026-08-06: 急停时刻 (卸力计时用)
 // 2026-08-05: 力传感器看门狗 — /Force 断流时所有力保护(软限/硬限/天花板)全部失效,
 // 且力控会误判线松而不停收线 (2026-08-05 实测: 传感器无数据时初始化持续收线险些绷断鲍登线)
 std::chrono::steady_clock::time_point last_force_time = std::chrono::steady_clock::now();
@@ -507,6 +508,7 @@ void torqueCallback(const std_msgs::msg::Float32::SharedPtr msg)
   if (fabs(g_force_value) >= FORCE_EMERGENCY)
   {
     emergency_stop = true;
+    emergency_time = std::chrono::steady_clock::now();
     currentDriveMode = STAND_MODE;
     send_speed(0.0);
     RCLCPP_ERROR(rclcpp::get_logger("ankle"), "急停! 力 %.2f kg 超过硬限值 %.1f kg, 电机已锁停, 请检查系统后重启",
@@ -516,11 +518,15 @@ void torqueCallback(const std_msgs::msg::Float32::SharedPtr msg)
   // 2026-08-06: 力上升速率检测 — 抬脚拽线时力以 >25kg/s 飙升,
   // 绝对值限值(25kg)触发太晚(实测超限后仍惯性冲到37kg)。
   // 速率触发可在 8kg 左右就识别拽线并开始卸力, 早约1个数量级。
-  // 用两个历史样本(约100ms窗口)估算, 抗单点噪声; 正常助力建力仅 ~6kg/s
-  static float f_hist[2] = {0.0f, 0.0f};   // f_hist[1]=上上帧, f_hist[0]=上一帧
-  float rise_rate = (g_force_value - f_hist[1]) * 10.0f;  // kg/s (/Force=20Hz, 2帧≈0.1s)
-  f_hist[1] = f_hist[0];
-  f_hist[0] = g_force_value;
+  // 用两个历史样本+真实时间戳 (力反馈已提速到100Hz, 不假定周期)
+  static float f_hist[2] = {0.0f, 0.0f};
+  static std::chrono::steady_clock::time_point t_hist[2] = {
+      std::chrono::steady_clock::now(), std::chrono::steady_clock::now()};
+  auto now_f = std::chrono::steady_clock::now();
+  double dt2 = std::chrono::duration<double>(now_f - t_hist[1]).count();  // 当前帧与上上帧间隔
+  float rise_rate = dt2 > 1e-4 ? (g_force_value - f_hist[1]) / dt2 : 0.0f;
+  t_hist[1] = t_hist[0]; f_hist[1] = f_hist[0];
+  t_hist[0] = now_f;     f_hist[0] = g_force_value;
 
   // 力保护: 超限 → 全速放线卸力 (2026-08-06: 原"冻住电机"在脚拽线时反而把张力送过硬限)
   if (fabs(g_force_value) >= FORCE_LIMIT ||
@@ -662,10 +668,14 @@ vector<uint8_t> speed_to_command(double speed)
     return {byte0, byte1, byte2, byte3};
 }
 
-// 2026-07-29 新电机SDO速度指令: 0x60FF, uu/s = deg/s × 600 × MOTOR_DIR
+// 2026-07-29 新电机SDO速度指令: 0x60FF
+// 2026-08-06 实测标定: 364 uu = 1 °/s (原假设600, 实测电机转速为指令的1.65倍!)
+// 标定方法: scripts/motor_speed_check.py, SDO读6064位置反馈(131072 pulse/圈),
+// 36000uu→98.9°/s, 72000uu→197.8°/s, 线性重复一致
+double SPEED_UU_PER_DEG_S = 364.0;
 void send_speed(double deg_s)
 {
-    int32_t uu = (int32_t)(deg_s * MOTOR_DIR * 600.0);
+    int32_t uu = (int32_t)(deg_s * MOTOR_DIR * SPEED_UU_PER_DEG_S);
     BYTE d[8] = {0x23, 0xFF, 0x60, 0x00,
                  (BYTE)(uu & 0xFF), (BYTE)((uu >> 8) & 0xFF),
                  (BYTE)((uu >> 16) & 0xFF), (BYTE)((uu >> 24) & 0xFF)};
@@ -1221,17 +1231,29 @@ int main(int argc, char **argv)
     if (!emergency_stop && forceDataFault())
     {
         emergency_stop = true;
+        emergency_time = std::chrono::steady_clock::now();
         currentDriveMode = STAND_MODE;
         send_speed(0.0);
         RCLCPP_ERROR(rclcpp::get_logger("ankle"),
                      "力传感器数据中断 (>0.5s 无更新)! 电机已锁停, 请检查传感器接线/电源后重启");
     }
 
-    // 急停锁存: 力超硬限值后所有状态失效, 只发零速
+    // 急停锁存: 力超硬限值后状态机失效
     if (emergency_stop)
     {
-        send_speed(0.0);
-        velocity_value = 0.0;   // 状态行显示真实指令
+        // 2026-08-06: 先全速放线卸力再锁定 — 直接冻结会把巨大张力留在绷直的线上
+        // (实测锁存时线上挂48kg)。放线最多持续3s兜底(防力数据异常时无限放线)
+        double emergency_elapsed = std::chrono::duration<double>(
+            std::chrono::steady_clock::now() - emergency_time).count();
+        if (g_force_value > 3.0 && emergency_elapsed < 3.0)
+        {
+            sendVelocityCommand(-MAX_SPEED);   // 放线卸力
+        }
+        else
+        {
+            send_speed(0.0);
+            velocity_value = 0.0;
+        }
     }
     // 2026-08-06: 高张力卸力反射 — 优先于状态机, 全速放线直到力<3kg
     else if (force_release)

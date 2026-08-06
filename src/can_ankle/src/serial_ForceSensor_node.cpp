@@ -50,7 +50,10 @@ int main(int argc, char** argv) {
     bool debug = node->get_parameter("debug").as_bool();
 
     auto force_pub = node->create_publisher<std_msgs::msg::Float32>("Force", 10);
-    rclcpp::WallRate loop_rate(std::chrono::milliseconds(50)); // Set to 20Hz for better Modbus stability
+    // 2026-08-06: 20Hz→100Hz。电机斜坡关闭后响应即时, 50ms力反馈成为控制瓶颈
+    // (实测: 驱动收线时100ms内张力可冲10kg+, 反馈太慢拦不住)。
+    // 19200波特一单帧约5ms, 100Hz 完全够用
+    rclcpp::WallRate loop_rate(std::chrono::milliseconds(10));
 
     try {
         ser.setPort(port);
@@ -93,14 +96,14 @@ int main(int argc, char** argv) {
         uint8_t resp[32] = {0};
         size_t n = 0;
         
-        // Simple polling for 9 bytes with timeout
+        // Simple polling for 9 bytes with timeout (2026-08-06: 100Hz 适配, 1ms轮询, 25ms超时)
         auto start_time = node->now();
-        while ((node->now() - start_time).seconds() < 0.1) {
+        while ((node->now() - start_time).seconds() < 0.025) {
             if (ser.available() >= expected_len) {
                 n = ser.read(resp, expected_len);
                 break;
             }
-            std::this_thread::sleep_for(std::chrono::milliseconds(5));
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
 
         if (n >= expected_len) {

@@ -1,0 +1,497 @@
+[INFO] [launch]: All log files can be found below /home/ler/.ros/log/2026-08-06-21-23-22-074475-ler-ASUS-TUF-Gaming-F16-FX607JV-FX607JV-38785
+[INFO] [launch]: Default logging verbosity is set to INFO
+[INFO] [serial_ForceSensor_node-1]: process started with pid [38796]
+[INFO] [serial_encoder_node-2]: process started with pid [38798]
+[INFO] [serial_sendCommand_node-3]: process started with pid [38800]
+[serial_encoder_node-2] [INFO] [1786022602.109367508] [serial_encoder_node]: Serial Port initialized (Modbus RTU, 9600) on /dev/ankle_encoder
+[serial_sendCommand_node-3] system clock resolution:1e-09seconds
+[serial_ForceSensor_node-1] [INFO] [1786022602.437575469] [serial_ForceSensor_node]: Force sensor serial port initialized: /dev/ankle_force @ 19200
+[serial_sendCommand_node-3] [INFO] [1786022602.438913694] [serial_sendCommand_node]: Serial port initialized on /dev/ankle_switch
+[serial_sendCommand_node-3] [WARN] [1786022602.439029844] [rcl.logging_rosout]: Publisher already registered for provided node name. If this is due to multiple nodes with the same name then all logs for that logger name will go out over the existing publisher. As soon as any node with that name is destructed it will unregister the publisher, preventing any further logs for that name from being published on the rosout topic.
+[serial_sendCommand_node-3] [WARN] [1786022602.444456896] [serial_sendCommand_node]: Sequence broken, waiting for next 0x41 to restart
+[serial_sendCommand_node-3] 接收指令：65
+[serial_sendCommand_node-3] 摆动相时间：13670.107570054
+[serial_sendCommand_node-3] [INFO] [1786022602.456831776] [serial_sendCommand_node]: Swing Phase time: 13670.107570054 seconds
+[serial_sendCommand_node-3] [INFO] [1786022602.456843794] [serial_sendCommand_node]: FULL_SUPPORT started
+[serial_sendCommand_node-3] 接收指令：66
+[serial_sendCommand_node-3] [INFO] [1786022602.881881283] [serial_sendCommand_node]: Support Phase One time: 0.425037167 seconds
+[serial_sendCommand_node-3] [INFO] [1786022602.881928954] [serial_sendCommand_node]: TENSION_TORQUE started
+[serial_sendCommand_node-3] 接收指令：65
+[serial_sendCommand_node-3] 摆动相时间：1.144004034
+[serial_sendCommand_node-3] [INFO] [1786022604.025867070] [serial_sendCommand_node]: Swing Phase time: 1.144004034 seconds
+[serial_sendCommand_node-3] [INFO] [1786022604.025893084] [serial_sendCommand_node]: FULL_SUPPORT started
+[INFO] [can_ankleControl_node-4]: process started with pid [38843]
+[can_ankleControl_node-4] [INFO] [1786022604.456623714] [can_ankleControl_node]: 控制参数: mode=1 体重=60.0 力限=25.0 急停限=35.0kg 驱动收线上限=22.0kg t_per_f=1.18 motor_dir=1 max_speed=600.0 ff=15.0
+[can_ankleControl_node-4] Resetting Chuangxin Tech USBCAN/CANalyst-II ... ok
+[can_ankleControl_node-4] [can] native CAN opened, motor enabled
+[can_ankleControl_node-4] [INFO] [1786022606.145899143] [can_ankleControl_node]: 初始化对准: 力控维持 0.5~2.5 kg, 等待 [双开关闭合] 持续 2.0 s...
+[can_ankleControl_node-4] [INFO] [1786022606.146567661] [ankle]: Initial encoder position: -6.41
+[can_ankleControl_node-4] 
+[can_ankleControl_node-4] [INFO] [1786022606.686231964] [can_ankleControl_node]: 预紧中: 开关[等待] 力[1.44 kg]
+[can_ankleControl_node-4] [INFO] [1786022607.226235081] [can_ankleControl_node]: 预紧中: 开关[等待] 力[1.82 kg]
+[can_ankleControl_node-4] [INFO] [1786022607.754960222] [can_ankleControl_node]: 预紧中: 开关[等待] 力[1.04 kg]
+[serial_sendCommand_node-3] [WARN] [1786022608.010764290] [serial_sendCommand_node]: Sequence broken, waiting for next 0x41 to restart
+[can_ankleControl_node-4] [INFO] [1786022608.279869335] [can_ankleControl_node]: 预紧中: 开关[等待] 力[0.95 kg]
+[can_ankleControl_node-4] [INFO] [1786022608.819684669] [can_ankleControl_node]: 预紧中: 开关[等待] 力[1.08 kg]
+[can_ankleControl_node-4] success: device 04D8:0053 opened
+[can_ankleControl_node-4] success: set configuration #1
+[can_ankleControl_node-4] success: claim_interface #0
+[serial_sendCommand_node-3] 接收指令：65
+[serial_sendCommand_node-3] 摆动相时间：5.293859380
+[serial_sendCommand_node-3] [INFO] [1786022609.319752233] [serial_sendCommand_node]: Swing Phase time: 5.293859380 seconds
+[serial_sendCommand_node-3] [INFO] [1786022609.319826470] [serial_sendCommand_node]: FULL_SUPPORT started
+[can_ankleControl_node-4] [INFO] [1786022609.361496682] [can_ankleControl_node]: 预紧中: 开关[等待] 力[2.05 kg]
+[can_ankleControl_node-4] [INFO] [1786022609.897394757] [can_ankleControl_node]: 预紧中: 开关[等待] 力[8.54 kg]
+[can_ankleControl_node-4] [INFO] [1786022610.430335642] [can_ankleControl_node]: 预紧中: 开关[等待] 力[2.90 kg]
+[can_ankleControl_node-4] [INFO] [1786022610.955449196] [can_ankleControl_node]: 预紧中: 开关[等待] 力[1.83 kg]
+[serial_sendCommand_node-3] [WARN] [1786022611.394935613] [serial_sendCommand_node]: Sequence broken, waiting for next 0x41 to restart
+[can_ankleControl_node-4] [INFO] [1786022611.481207120] [can_ankleControl_node]: 预紧中: 开关[等待] 力[3.22 kg]
+[serial_sendCommand_node-3] 接收指令：65
+[serial_sendCommand_node-3] 摆动相时间：2.358444893
+[serial_sendCommand_node-3] [INFO] [1786022611.678179952] [serial_sendCommand_node]: Swing Phase time: 2.358444893 seconds
+[serial_sendCommand_node-3] [INFO] [1786022611.678234240] [serial_sendCommand_node]: FULL_SUPPORT started
+[can_ankleControl_node-4] [INFO] [1786022612.007538685] [can_ankleControl_node]: 预紧中: 开关[等待] 力[0.77 kg]
+[can_ankleControl_node-4] [INFO] [1786022612.532152401] [can_ankleControl_node]: 预紧中: 开关[等待] 力[1.39 kg]
+[serial_sendCommand_node-3] [WARN] [1786022612.594908947] [serial_sendCommand_node]: Sequence broken, waiting for next 0x41 to restart
+[can_ankleControl_node-4] [INFO] [1786022613.056721743] [can_ankleControl_node]: 预紧中: 开关[等待] 力[3.52 kg]
+[can_ankleControl_node-4] [INFO] [1786022613.580965295] [can_ankleControl_node]: 预紧中: 开关[等待] 力[2.29 kg]
+[can_ankleControl_node-4] [INFO] [1786022614.105459339] [can_ankleControl_node]: 预紧中: 开关[等待] 力[2.18 kg]
+[serial_sendCommand_node-3] 接收指令：65
+[serial_sendCommand_node-3] 摆动相时间：2.709652826
+[serial_sendCommand_node-3] [INFO] [1786022614.387831405] [serial_sendCommand_node]: Swing Phase time: 2.709652826 seconds
+[serial_sendCommand_node-3] [INFO] [1786022614.387892452] [serial_sendCommand_node]: FULL_SUPPORT started
+[can_ankleControl_node-4] [INFO] [1786022614.632605053] [can_ankleControl_node]: 预紧中: 开关[等待] 力[2.74 kg]
+[can_ankleControl_node-4] [INFO] [1786022615.158874652] [can_ankleControl_node]: 预紧中: 开关[等待] 力[2.06 kg]
+[serial_sendCommand_node-3] [WARN] [1786022615.530508941] [serial_sendCommand_node]: Sequence broken, waiting for next 0x41 to restart
+[can_ankleControl_node-4] [INFO] [1786022615.685807586] [can_ankleControl_node]: 预紧中: 开关[等待] 力[1.50 kg]
+[can_ankleControl_node-4] [INFO] [1786022616.210374775] [can_ankleControl_node]: 预紧中: 开关[等待] 力[0.72 kg]
+[can_ankleControl_node-4] [INFO] [1786022616.736048414] [can_ankleControl_node]: 预紧中: 开关[等待] 力[1.01 kg]
+[serial_sendCommand_node-3] 接收指令：65
+[serial_sendCommand_node-3] 摆动相时间：2.787616612
+[serial_sendCommand_node-3] [INFO] [1786022617.175452406] [serial_sendCommand_node]: Swing Phase time: 2.787616612 seconds
+[serial_sendCommand_node-3] [INFO] [1786022617.175525205] [serial_sendCommand_node]: FULL_SUPPORT started
+[can_ankleControl_node-4] [INFO] [1786022617.271429283] [can_ankleControl_node]: 预紧中: 开关[等待] 力[2.53 kg]
+[serial_sendCommand_node-3] [WARN] [1786022617.565560708] [serial_sendCommand_node]: Sequence broken, waiting for next 0x41 to restart
+[can_ankleControl_node-4] [INFO] [1786022617.808836555] [can_ankleControl_node]: 预紧中: 开关[等待] 力[5.54 kg]
+[can_ankleControl_node-4] [INFO] [1786022618.333890313] [can_ankleControl_node]: 预紧中: 开关[等待] 力[4.93 kg]
+[can_ankleControl_node-4] [INFO] [1786022618.860752891] [can_ankleControl_node]: 预紧中: 开关[等待] 力[4.11 kg]
+[can_ankleControl_node-4] [INFO] [1786022619.388795364] [can_ankleControl_node]: 预紧中: 开关[等待] 力[2.86 kg]
+[serial_sendCommand_node-3] 接收指令：65
+[serial_sendCommand_node-3] 摆动相时间：2.309181700
+[serial_sendCommand_node-3] [INFO] [1786022619.484644495] [serial_sendCommand_node]: Swing Phase time: 2.309181700 seconds
+[serial_sendCommand_node-3] [INFO] [1786022619.484712091] [serial_sendCommand_node]: FULL_SUPPORT started
+[can_ankleControl_node-4] [INFO] [1786022619.916754128] [can_ankleControl_node]: 预紧中: 开关[等待] 力[2.26 kg]
+[can_ankleControl_node-4] [INFO] [1786022620.443220690] [can_ankleControl_node]: 预紧中: 开关[等待] 力[2.34 kg]
+[can_ankleControl_node-4] [INFO] [1786022620.969159495] [can_ankleControl_node]: 预紧中: 开关[等待] 力[1.75 kg]
+[can_ankleControl_node-4] [INFO] [1786022621.495974961] [can_ankleControl_node]: 预紧中: 开关[等待] 力[0.47 kg]
+[can_ankleControl_node-4] [INFO] [1786022622.033676948] [can_ankleControl_node]: 预紧中: 开关[等待] 力[0.59 kg]
+[serial_sendCommand_node-3] [WARN] [1786022622.351881573] [serial_sendCommand_node]: Sequence broken, waiting for next 0x41 to restart
+[serial_sendCommand_node-3] 接收指令：65
+[serial_sendCommand_node-3] 摆动相时间：3.074696776
+[serial_sendCommand_node-3] [INFO] [1786022622.559330516] [serial_sendCommand_node]: Swing Phase time: 3.074696776 seconds
+[serial_sendCommand_node-3] [INFO] [1786022622.559391774] [serial_sendCommand_node]: FULL_SUPPORT started
+[can_ankleControl_node-4] [INFO] [1786022622.571297192] [can_ankleControl_node]: 预紧中: 开关[等待] 力[0.87 kg]
+[can_ankleControl_node-4] [INFO] [1786022623.097921867] [can_ankleControl_node]: 预紧中: 开关[等待] 力[1.12 kg]
+[can_ankleControl_node-4] [INFO] [1786022623.624557862] [can_ankleControl_node]: 预紧中: 开关[等待] 力[1.77 kg]
+[serial_sendCommand_node-3] [WARN] [1786022623.910681735] [serial_sendCommand_node]: Sequence broken, waiting for next 0x41 to restart
+[can_ankleControl_node-4] [INFO] [1786022624.153100773] [can_ankleControl_node]: 预紧中: 开关[等待] 力[2.16 kg]
+[serial_sendCommand_node-3] 接收指令：65
+[serial_sendCommand_node-3] 摆动相时间：1.839852394
+[serial_sendCommand_node-3] [INFO] [1786022624.399178936] [serial_sendCommand_node]: Swing Phase time: 1.839852394 seconds
+[serial_sendCommand_node-3] [INFO] [1786022624.399214878] [serial_sendCommand_node]: FULL_SUPPORT started
+[can_ankleControl_node-4] [INFO] [1786022624.681759381] [can_ankleControl_node]: 预紧中: 开关[等待] 力[0.50 kg]
+[can_ankleControl_node-4] [INFO] [1786022625.206969595] [can_ankleControl_node]: 预紧中: 开关[等待] 力[2.56 kg]
+[serial_sendCommand_node-3] [WARN] [1786022625.569025711] [serial_sendCommand_node]: Sequence broken, waiting for next 0x41 to restart
+[can_ankleControl_node-4] [INFO] [1786022625.732335301] [can_ankleControl_node]: 预紧中: 开关[等待] 力[0.67 kg]
+[serial_sendCommand_node-3] 接收指令：65
+[serial_sendCommand_node-3] 摆动相时间：1.656762207
+[serial_sendCommand_node-3] [INFO] [1786022626.055948348] [serial_sendCommand_node]: Swing Phase time: 1.656762207 seconds
+[serial_sendCommand_node-3] [INFO] [1786022626.055998720] [serial_sendCommand_node]: FULL_SUPPORT started
+[can_ankleControl_node-4] [INFO] [1786022626.256565588] [can_ankleControl_node]: 预紧中: 开关[等待] 力[1.01 kg]
+[serial_sendCommand_node-3] 接收指令：66
+[serial_sendCommand_node-3] [INFO] [1786022626.315951501] [serial_sendCommand_node]: Support Phase One time: 0.260010626 seconds
+[serial_sendCommand_node-3] [INFO] [1786022626.315986624] [serial_sendCommand_node]: TENSION_TORQUE started
+[can_ankleControl_node-4] Slope: 0
+[can_ankleControl_node-4] [INFO] [1786022626.781692521] [can_ankleControl_node]: 预紧中: 开关[OK] 力[1.67 kg]
+[can_ankleControl_node-4] [INFO] [1786022627.308307012] [can_ankleControl_node]: 预紧中: 开关[OK] 力[1.45 kg]
+[can_ankleControl_node-4] [INFO] [1786022627.842143047] [can_ankleControl_node]: 预紧中: 开关[OK] 力[1.46 kg]
+[can_ankleControl_node-4] [INFO] [1786022628.322860120] [can_ankleControl_node]: 初始化完成: force=2.07 kg, 开关闭合稳定保持 2.0 s
+[can_ankleControl_node-4] ========================================
+[can_ankleControl_node-4]   初始化完成! 力=2.07 kg  开关闭合 2.0 s
+[can_ankleControl_node-4] ========================================
+[can_ankleControl_node-4] ========================================
+[can_ankleControl_node-4]   初始化结束, 预紧力控保持中 (0.5~2.5kg)
+[can_ankleControl_node-4]   确认穿戴就绪后, 按 Enter 进入主循环...
+[can_ankleControl_node-4] ========================================
+[can_ankleControl_node-4] [等待 Enter] 预紧保持中, 力=2.05 kg
+[can_ankleControl_node-4] [等待 Enter] 预紧保持中, 力=2.03 kg
+[can_ankleControl_node-4] [等待 Enter] 预紧保持中, 力=2.25 kg
+[can_ankleControl_node-4] [等待 Enter] 预紧保持中, 力=2.25 kg
+[can_ankleControl_node-4] [等待 Enter] 预紧保持中, 力=2.12 kg
+[can_ankleControl_node-4] [INFO] [1786022638.408035857] [can_ankleControl_node]: 操作者已确认, 进入主循环
+[can_ankleControl_node-4] ========================================
+[can_ankleControl_node-4]   已进入主循环 (200Hz), 步态助力已激活
+[can_ankleControl_node-4]   下方每秒刷新一次状态, Ctrl+C 停止
+[can_ankleControl_node-4] ========================================
+[can_ankleControl_node-4] [INFO] [1786022638.611286260] [can_ankleControl_node]: 进入主循环, 初始模式=STAND_MODE
+[can_ankleControl_node-4] [状态] 模式=全掌支撑  力=2.13 kg  速度指令=60 °/s
+[can_ankleControl_node-4] [状态] 模式=全掌支撑  力=3.02 kg  速度指令=0 °/s
+[serial_sendCommand_node-3] 接收指令：65
+[serial_sendCommand_node-3] 摆动相时间：13.426994802
+[serial_sendCommand_node-3] [INFO] [1786022639.742962694] [serial_sendCommand_node]: Swing Phase time: 13.426994802 seconds
+[serial_sendCommand_node-3] [INFO] [1786022639.743040753] [serial_sendCommand_node]: FULL_SUPPORT started
+[can_ankleControl_node-4] 支撑相起始电机角度2已存储
+[serial_sendCommand_node-3] 接收指令：66
+[serial_sendCommand_node-3] [INFO] [1786022640.472950922] [serial_sendCommand_node]: Support Phase One time: 0.729992625 seconds
+[serial_sendCommand_node-3] [INFO] [1786022640.472998899] [serial_sendCommand_node]: TENSION_TORQUE started
+[can_ankleControl_node-4] Slope: 0
+[can_ankleControl_node-4] [状态] 模式=全掌支撑  力=5.09 kg  速度指令=0 °/s
+[serial_sendCommand_node-3] 接收指令：65
+[serial_sendCommand_node-3] 摆动相时间：0.821981864
+[serial_sendCommand_node-3] [INFO] [1786022641.294915814] [serial_sendCommand_node]: Swing Phase time: 0.821981864 seconds
+[serial_sendCommand_node-3] [INFO] [1786022641.294941388] [serial_sendCommand_node]: FULL_SUPPORT started
+[can_ankleControl_node-4] [状态] 模式=预张紧  力=6.36 kg  速度指令=0 °/s
+[serial_sendCommand_node-3] 接收指令：66
+[serial_sendCommand_node-3] [INFO] [1786022642.543972109] [serial_sendCommand_node]: Support Phase One time: 1.249030476 seconds
+[serial_sendCommand_node-3] [INFO] [1786022642.544036577] [serial_sendCommand_node]: TENSION_TORQUE started
+[can_ankleControl_node-4] Slope: 0
+[can_ankleControl_node-4] [状态] 模式=全掌支撑  力=5.65 kg  速度指令=0 °/s
+[serial_sendCommand_node-3] 接收指令：67
+[serial_sendCommand_node-3] [INFO] [1786022643.239000397] [serial_sendCommand_node]: Support Phase Two time: 0.695021190 seconds
+[serial_sendCommand_node-3] [INFO] [1786022643.239051015] [serial_sendCommand_node]: TORQUE_CURVE started
+[can_ankleControl_node-4] time2:0.695021realpace:1.77052drive time:0.561941R value:0.569468
+[can_ankleControl_node-4] assist torque: 0.00NM,float torque: -0.69NMextra torque: -0.78NM,final peak torque: 16.53NM 
+[serial_sendCommand_node-3] 接收指令：68
+[serial_sendCommand_node-3] 支撑相时间：2.099036061
+[serial_sendCommand_node-3] [INFO] [1786022643.393977824] [serial_sendCommand_node]: Support Phase Three time: 0.154984395 seconds
+[serial_sendCommand_node-3] [INFO] [1786022643.394009402] [serial_sendCommand_node]: SWING_PHASE started
+[serial_sendCommand_node-3] [INFO] [1786022643.394041612] [serial_sendCommand_node]: Support Phase total: 2.099036061 seconds
+[can_ankleControl_node-4] [状态] 模式=蹬地助力  力=4.42 kg  速度指令=389.155 °/s
+[can_ankleControl_node-4] [WARN] [1786022643.666760018] [ankle]: 力超限/骤升! 13.45 kg (速率 90 kg/s), 全速放线卸力
+[can_ankleControl_node-4] [ERROR] [1786022643.816768832] [ankle]: 急停! 力 40.77 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[serial_sendCommand_node-3] [WARN] [1786022643.850478333] [serial_sendCommand_node]: Sequence broken, waiting for next 0x41 to restart
+[can_ankleControl_node-4] [ERROR] [1786022643.866798217] [ankle]: 急停! 力 44.21 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022643.916778173] [ankle]: 急停! 力 45.83 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[serial_sendCommand_node-3] [WARN] [1786022643.961397087] [serial_sendCommand_node]: Sequence broken, waiting for next 0x41 to restart
+[can_ankleControl_node-4] [ERROR] [1786022643.966732935] [ankle]: 急停! 力 46.62 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022644.016774857] [ankle]: 急停! 力 46.94 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022644.066782080] [ankle]: 急停! 力 47.06 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022644.116798559] [ankle]: 急停! 力 47.21 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022644.166942231] [ankle]: 急停! 力 47.53 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022644.216749298] [ankle]: 急停! 力 47.92 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022644.266729752] [ankle]: 急停! 力 48.28 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022644.316824284] [ankle]: 急停! 力 48.50 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[serial_sendCommand_node-3] [WARN] [1786022644.346203310] [serial_sendCommand_node]: Sequence broken, waiting for next 0x41 to restart
+[can_ankleControl_node-4] [ERROR] [1786022644.366791695] [ankle]: 急停! 力 48.41 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022644.416975049] [ankle]: 急停! 力 47.99 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022644.466961848] [ankle]: 急停! 力 47.54 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022644.516900771] [ankle]: 急停! 力 47.31 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022644.566763890] [ankle]: 急停! 力 47.04 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [状态] *** 急停锁存 *** 力=47.04 kg (需重启恢复)
+[can_ankleControl_node-4] [ERROR] [1786022644.616890581] [ankle]: 急停! 力 46.53 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[serial_sendCommand_node-3] [WARN] [1786022644.627082821] [serial_sendCommand_node]: Sequence broken, waiting for next 0x41 to restart
+[can_ankleControl_node-4] [ERROR] [1786022644.666806969] [ankle]: 急停! 力 46.06 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022644.716805822] [ankle]: 急停! 力 45.91 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022644.766817785] [ankle]: 急停! 力 46.06 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022644.816803683] [ankle]: 急停! 力 46.30 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022644.866938430] [ankle]: 急停! 力 46.43 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022644.916771604] [ankle]: 急停! 力 46.52 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022644.967104375] [ankle]: 急停! 力 46.63 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022645.016909344] [ankle]: 急停! 力 46.73 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022645.066808468] [ankle]: 急停! 力 46.79 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022645.116791080] [ankle]: 急停! 力 46.88 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[serial_sendCommand_node-3] 接收指令：65
+[serial_sendCommand_node-3] 摆动相时间：1.733174627
+[serial_sendCommand_node-3] [INFO] [1786022645.127133946] [serial_sendCommand_node]: Swing Phase time: 1.733174627 seconds
+[serial_sendCommand_node-3] [INFO] [1786022645.127198152] [serial_sendCommand_node]: FULL_SUPPORT started
+[can_ankleControl_node-4] [ERROR] [1786022645.166834409] [ankle]: 急停! 力 47.24 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022645.216809984] [ankle]: 急停! 力 47.68 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022645.266775905] [ankle]: 急停! 力 47.77 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022645.316787538] [ankle]: 急停! 力 47.73 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022645.366809011] [ankle]: 急停! 力 47.82 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022645.416776498] [ankle]: 急停! 力 48.00 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022645.466768024] [ankle]: 急停! 力 48.28 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022645.516784489] [ankle]: 急停! 力 48.59 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[serial_sendCommand_node-3] 接收指令：66
+[serial_sendCommand_node-3] [INFO] [1786022645.535079237] [serial_sendCommand_node]: Support Phase One time: 0.407952164 seconds
+[serial_sendCommand_node-3] [INFO] [1786022645.535109187] [serial_sendCommand_node]: TENSION_TORQUE started
+[can_ankleControl_node-4] Slope: 0
+[can_ankleControl_node-4] [ERROR] [1786022645.566777871] [ankle]: 急停! 力 48.93 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [状态] *** 急停锁存 *** 力=48.93 kg (需重启恢复)
+[can_ankleControl_node-4] [ERROR] [1786022645.616813733] [ankle]: 急停! 力 49.25 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022645.667022312] [ankle]: 急停! 力 49.51 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022645.716821925] [ankle]: 急停! 力 49.77 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022645.766791177] [ankle]: 急停! 力 50.07 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[serial_sendCommand_node-3] 接收指令：67
+[serial_sendCommand_node-3] [INFO] [1786022645.787091787] [serial_sendCommand_node]: Support Phase Two time: 0.252012440 seconds
+[serial_sendCommand_node-3] [INFO] [1786022645.787118875] [serial_sendCommand_node]: TORQUE_CURVE started
+[can_ankleControl_node-4] [ERROR] [1786022645.816771370] [ankle]: 急停! 力 50.34 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022645.866782447] [ankle]: 急停! 力 50.40 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022645.916772347] [ankle]: 急停! 力 49.86 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022645.966773101] [ankle]: 急停! 力 48.50 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022646.016779016] [ankle]: 急停! 力 47.06 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[serial_sendCommand_node-3] 接收指令：68
+[serial_sendCommand_node-3] [INFO] [1786022646.033085943] [serial_sendCommand_node]: Support Phase Three time: 0.245995322 seconds
+[serial_sendCommand_node-3] [INFO] [1786022646.033111054] [serial_sendCommand_node]: SWING_PHASE started
+[serial_sendCommand_node-3] [INFO] [1786022646.033122505] [serial_sendCommand_node]: Support Phase total: 0.905959926 seconds
+[serial_sendCommand_node-3] 支撑相时间：0.905959926
+[can_ankleControl_node-4] [ERROR] [1786022646.066782313] [ankle]: 急停! 力 46.29 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022646.116779360] [ankle]: 急停! 力 46.11 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022646.166779148] [ankle]: 急停! 力 46.20 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022646.216973242] [ankle]: 急停! 力 46.40 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022646.266803226] [ankle]: 急停! 力 46.61 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022646.316777741] [ankle]: 急停! 力 46.81 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022646.366775195] [ankle]: 急停! 力 47.00 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022646.417048852] [ankle]: 急停! 力 47.12 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022646.466786800] [ankle]: 急停! 力 47.15 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022646.516791892] [ankle]: 急停! 力 47.11 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[serial_sendCommand_node-3] 接收指令：65
+[serial_sendCommand_node-3] 摆动相时间：0.499016897
+[serial_sendCommand_node-3] [INFO] [1786022646.532108465] [serial_sendCommand_node]: Swing Phase time: 0.499016897 seconds
+[serial_sendCommand_node-3] [INFO] [1786022646.532151288] [serial_sendCommand_node]: FULL_SUPPORT started
+[can_ankleControl_node-4] [ERROR] [1786022646.566899986] [ankle]: 急停! 力 47.11 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [状态] *** 急停锁存 *** 力=47.11 kg (需重启恢复)
+[can_ankleControl_node-4] [ERROR] [1786022646.616813450] [ankle]: 急停! 力 47.27 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022646.666967045] [ankle]: 急停! 力 47.52 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022646.716826862] [ankle]: 急停! 力 47.77 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[serial_sendCommand_node-3] 接收指令：66
+[serial_sendCommand_node-3] [INFO] [1786022646.763113184] [serial_sendCommand_node]: Support Phase One time: 0.231005196 seconds
+[serial_sendCommand_node-3] [INFO] [1786022646.763145384] [serial_sendCommand_node]: TENSION_TORQUE started
+[can_ankleControl_node-4] Slope: 0
+[can_ankleControl_node-4] [ERROR] [1786022646.766869574] [ankle]: 急停! 力 48.10 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022646.816787127] [ankle]: 急停! 力 48.45 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022646.866780588] [ankle]: 急停! 力 48.77 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022646.916794292] [ankle]: 急停! 力 49.08 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022646.966787011] [ankle]: 急停! 力 49.37 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022647.017025940] [ankle]: 急停! 力 49.65 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022647.066927543] [ankle]: 急停! 力 49.93 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022647.116834498] [ankle]: 急停! 力 50.17 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022647.166757960] [ankle]: 急停! 力 50.37 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022647.216816329] [ankle]: 急停! 力 50.55 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[serial_sendCommand_node-3] 接收指令：67
+[serial_sendCommand_node-3] [INFO] [1786022647.226135100] [serial_sendCommand_node]: Support Phase Two time: 0.463016815 seconds
+[serial_sendCommand_node-3] [INFO] [1786022647.226190799] [serial_sendCommand_node]: TORQUE_CURVE started
+[can_ankleControl_node-4] [ERROR] [1786022647.266918719] [ankle]: 急停! 力 50.71 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022647.316799538] [ankle]: 急停! 力 50.73 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022647.366779118] [ankle]: 急停! 力 50.21 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022647.416809103] [ankle]: 急停! 力 48.96 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[serial_sendCommand_node-3] 接收指令：68
+[serial_sendCommand_node-3] 支撑相时间：0.912042119
+[serial_sendCommand_node-3] [INFO] [1786022647.444167620] [serial_sendCommand_node]: Support Phase Three time: 0.218020108 seconds
+[serial_sendCommand_node-3] [INFO] [1786022647.444210407] [serial_sendCommand_node]: SWING_PHASE started
+[serial_sendCommand_node-3] [INFO] [1786022647.444242250] [serial_sendCommand_node]: Support Phase total: 0.912042119 seconds
+[can_ankleControl_node-4] [ERROR] [1786022647.466773478] [ankle]: 急停! 力 47.64 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022647.516771965] [ankle]: 急停! 力 46.90 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022647.566791713] [ankle]: 急停! 力 46.79 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [状态] *** 急停锁存 *** 力=46.79 kg (需重启恢复)
+[can_ankleControl_node-4] [ERROR] [1786022647.616998322] [ankle]: 急停! 力 47.08 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022647.666914620] [ankle]: 急停! 力 47.42 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022647.716788941] [ankle]: 急停! 力 47.56 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022647.767050696] [ankle]: 急停! 力 47.48 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022647.817005749] [ankle]: 急停! 力 47.33 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022647.866816475] [ankle]: 急停! 力 47.18 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022647.916995039] [ankle]: 急停! 力 47.04 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[serial_sendCommand_node-3] [WARN] [1786022647.937914919] [serial_sendCommand_node]: Sequence broken, waiting for next 0x41 to restart
+[can_ankleControl_node-4] [ERROR] [1786022647.966796455] [ankle]: 急停! 力 46.92 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022648.016789160] [ankle]: 急停! 力 46.92 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[serial_sendCommand_node-3] [WARN] [1786022648.028775469] [serial_sendCommand_node]: Sequence broken, waiting for next 0x41 to restart
+[can_ankleControl_node-4] [ERROR] [1786022648.066790506] [ankle]: 急停! 力 47.04 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022648.116908766] [ankle]: 急停! 力 47.10 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022648.166798789] [ankle]: 急停! 力 47.01 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022648.216771457] [ankle]: 急停! 力 46.94 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[serial_sendCommand_node-3] 接收指令：65
+[serial_sendCommand_node-3] 摆动相时间：0.800643660
+[serial_sendCommand_node-3] [INFO] [1786022648.244809142] [serial_sendCommand_node]: Swing Phase time: 0.800643660 seconds
+[serial_sendCommand_node-3] [INFO] [1786022648.244867877] [serial_sendCommand_node]: FULL_SUPPORT started
+[can_ankleControl_node-4] [ERROR] [1786022648.266795781] [ankle]: 急停! 力 47.03 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022648.316811579] [ankle]: 急停! 力 47.20 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022648.366787578] [ankle]: 急停! 力 47.36 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022648.416811612] [ankle]: 急停! 力 47.51 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022648.466783664] [ankle]: 急停! 力 47.69 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022648.516807543] [ankle]: 急停! 力 47.96 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022648.567218783] [ankle]: 急停! 力 48.31 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [状态] *** 急停锁存 *** 力=48.31 kg (需重启恢复)
+[can_ankleControl_node-4] [ERROR] [1786022648.616805848] [ankle]: 急停! 力 48.54 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022648.666784411] [ankle]: 急停! 力 48.49 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022648.716963855] [ankle]: 急停! 力 48.18 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022648.766942123] [ankle]: 急停! 力 47.85 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022648.816965890] [ankle]: 急停! 力 47.64 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022648.866935952] [ankle]: 急停! 力 47.54 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022648.917126136] [ankle]: 急停! 力 47.50 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022648.967002947] [ankle]: 急停! 力 47.45 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022649.016798880] [ankle]: 急停! 力 47.41 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022649.066785985] [ankle]: 急停! 力 47.44 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022649.116794132] [ankle]: 急停! 力 47.51 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022649.166789463] [ankle]: 急停! 力 47.56 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022649.216790183] [ankle]: 急停! 力 47.56 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022649.266792866] [ankle]: 急停! 力 47.54 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022649.316827008] [ankle]: 急停! 力 47.51 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022649.366788878] [ankle]: 急停! 力 47.49 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022649.417033289] [ankle]: 急停! 力 47.46 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022649.467082699] [ankle]: 急停! 力 47.42 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022649.516814568] [ankle]: 急停! 力 47.39 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022649.566790923] [ankle]: 急停! 力 47.38 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [状态] *** 急停锁存 *** 力=47.38 kg (需重启恢复)
+[can_ankleControl_node-4] [ERROR] [1786022649.617022738] [ankle]: 急停! 力 47.38 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022649.666836564] [ankle]: 急停! 力 47.43 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022649.716785969] [ankle]: 急停! 力 47.47 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022649.766790186] [ankle]: 急停! 力 47.38 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022649.816791171] [ankle]: 急停! 力 47.25 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022649.866793597] [ankle]: 急停! 力 47.14 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022649.916798171] [ankle]: 急停! 力 47.07 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022649.966795814] [ankle]: 急停! 力 47.00 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022650.016791321] [ankle]: 急停! 力 46.95 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022650.066800940] [ankle]: 急停! 力 46.93 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[serial_sendCommand_node-3] [WARN] [1786022650.109448327] [serial_sendCommand_node]: Sequence broken, waiting for next 0x41 to restart
+[can_ankleControl_node-4] [ERROR] [1786022650.116798366] [ankle]: 急停! 力 46.98 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022650.166802913] [ankle]: 急停! 力 47.06 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022650.216789264] [ankle]: 急停! 力 47.11 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022650.267052191] [ankle]: 急停! 力 47.08 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022650.317001803] [ankle]: 急停! 力 46.99 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022650.367077782] [ankle]: 急停! 力 46.90 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[serial_sendCommand_node-3] 接收指令：65
+[serial_sendCommand_node-3] 摆动相时间：2.155056500
+[serial_sendCommand_node-3] [INFO] [1786022650.399860050] [serial_sendCommand_node]: Swing Phase time: 2.155056500 seconds
+[serial_sendCommand_node-3] [INFO] [1786022650.399904557] [serial_sendCommand_node]: FULL_SUPPORT started
+[can_ankleControl_node-4] [ERROR] [1786022650.416798034] [ankle]: 急停! 力 46.86 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022650.466798573] [ankle]: 急停! 力 46.85 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022650.516798574] [ankle]: 急停! 力 46.85 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022650.566978070] [ankle]: 急停! 力 46.85 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [状态] *** 急停锁存 *** 力=46.85 kg (需重启恢复)
+[can_ankleControl_node-4] [ERROR] [1786022650.616928755] [ankle]: 急停! 力 46.85 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022650.666987661] [ankle]: 急停! 力 46.83 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022650.716903606] [ankle]: 急停! 力 46.79 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022650.766968354] [ankle]: 急停! 力 46.74 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022650.816971942] [ankle]: 急停! 力 46.71 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022650.866977528] [ankle]: 急停! 力 46.68 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022650.917023613] [ankle]: 急停! 力 46.67 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[serial_sendCommand_node-3] [WARN] [1786022650.917133413] [serial_sendCommand_node]: Sequence broken, waiting for next 0x41 to restart
+[can_ankleControl_node-4] [ERROR] [1786022650.966799396] [ankle]: 急停! 力 46.65 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022651.017140065] [ankle]: 急停! 力 46.63 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022651.066798417] [ankle]: 急停! 力 46.61 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022651.116831712] [ankle]: 急停! 力 46.59 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022651.166935140] [ankle]: 急停! 力 46.58 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022651.216806367] [ankle]: 急停! 力 46.58 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022651.266813385] [ankle]: 急停! 力 46.60 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022651.316817352] [ankle]: 急停! 力 46.73 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022651.366941763] [ankle]: 急停! 力 46.98 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022651.416810643] [ankle]: 急停! 力 47.29 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022651.467057492] [ankle]: 急停! 力 47.60 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022651.516808629] [ankle]: 急停! 力 47.81 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022651.566810995] [ankle]: 急停! 力 47.91 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [状态] *** 急停锁存 *** 力=47.91 kg (需重启恢复)
+[can_ankleControl_node-4] [ERROR] [1786022651.617096410] [ankle]: 急停! 力 47.98 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022651.667114127] [ankle]: 急停! 力 48.03 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022651.717099702] [ankle]: 急停! 力 48.05 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022651.767074771] [ankle]: 急停! 力 48.06 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022651.816809961] [ankle]: 急停! 力 48.07 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022651.866807289] [ankle]: 急停! 力 48.06 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022651.916816884] [ankle]: 急停! 力 48.08 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022651.961817878] [ankle]: 急停! 力 48.12 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022652.016902261] [ankle]: 急停! 力 48.17 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022652.066939191] [ankle]: 急停! 力 48.25 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022652.117011558] [ankle]: 急停! 力 48.36 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022652.167132856] [ankle]: 急停! 力 48.50 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[serial_sendCommand_node-3] 接收指令：65
+[serial_sendCommand_node-3] 摆动相时间：1.783060039
+[serial_sendCommand_node-3] [INFO] [1786022652.182925215] [serial_sendCommand_node]: Swing Phase time: 1.783060039 seconds
+[serial_sendCommand_node-3] [INFO] [1786022652.182984726] [serial_sendCommand_node]: FULL_SUPPORT started
+[can_ankleControl_node-4] [ERROR] [1786022652.217087224] [ankle]: 急停! 力 48.69 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022652.267158277] [ankle]: 急停! 力 48.88 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022652.317026095] [ankle]: 急停! 力 49.04 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022652.367080366] [ankle]: 急停! 力 49.01 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022652.416945137] [ankle]: 急停! 力 48.92 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022652.466939263] [ankle]: 急停! 力 49.00 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022652.516952256] [ankle]: 急停! 力 49.09 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022652.566817830] [ankle]: 急停! 力 49.16 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [状态] *** 急停锁存 *** 力=49.16 kg (需重启恢复)
+[can_ankleControl_node-4] [ERROR] [1786022652.616822813] [ankle]: 急停! 力 49.23 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022652.666813447] [ankle]: 急停! 力 49.28 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022652.717285433] [ankle]: 急停! 力 49.31 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022652.767069795] [ankle]: 急停! 力 49.34 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022652.816826964] [ankle]: 急停! 力 49.37 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022652.866818425] [ankle]: 急停! 力 49.40 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022652.916828036] [ankle]: 急停! 力 49.42 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022652.966935120] [ankle]: 急停! 力 49.42 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022653.016936672] [ankle]: 急停! 力 49.41 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022653.066824470] [ankle]: 急停! 力 49.32 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022653.116825032] [ankle]: 急停! 力 49.13 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022653.166951000] [ankle]: 急停! 力 48.97 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022653.216977143] [ankle]: 急停! 力 48.97 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022653.267064616] [ankle]: 急停! 力 49.08 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022653.317283115] [ankle]: 急停! 力 49.15 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022653.367007544] [ankle]: 急停! 力 49.25 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022653.416892107] [ankle]: 急停! 力 49.45 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022653.467127923] [ankle]: 急停! 力 49.67 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022653.516830366] [ankle]: 急停! 力 49.82 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022653.566957371] [ankle]: 急停! 力 49.87 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [状态] *** 急停锁存 *** 力=49.87 kg (需重启恢复)
+[can_ankleControl_node-4] [ERROR] [1786022653.616957403] [ankle]: 急停! 力 49.86 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022653.667275448] [ankle]: 急停! 力 49.84 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022653.717420206] [ankle]: 急停! 力 49.80 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022653.766762754] [ankle]: 急停! 力 49.75 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022653.816916028] [ankle]: 急停! 力 49.70 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022653.866940887] [ankle]: 急停! 力 49.72 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022653.916832491] [ankle]: 急停! 力 49.82 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022653.966830437] [ankle]: 急停! 力 49.93 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022654.016836915] [ankle]: 急停! 力 50.00 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022654.066987961] [ankle]: 急停! 力 50.00 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022654.116845594] [ankle]: 急停! 力 49.97 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022654.167045333] [ankle]: 急停! 力 49.95 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022654.216833824] [ankle]: 急停! 力 49.97 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022654.266842197] [ankle]: 急停! 力 50.00 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[serial_sendCommand_node-3] 接收指令：66
+[serial_sendCommand_node-3] [INFO] [1786022654.267916921] [serial_sendCommand_node]: Support Phase One time: 2.085001961 seconds
+[serial_sendCommand_node-3] [INFO] [1786022654.267970241] [serial_sendCommand_node]: TENSION_TORQUE started
+[can_ankleControl_node-4] Slope: 0
+[can_ankleControl_node-4] [ERROR] [1786022654.316837968] [ankle]: 急停! 力 50.02 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022654.366832464] [ankle]: 急停! 力 50.04 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[serial_sendCommand_node-3] 接收指令：67
+[serial_sendCommand_node-3] [INFO] [1786022654.415953612] [serial_sendCommand_node]: Support Phase Two time: 0.148038129 seconds
+[serial_sendCommand_node-3] [INFO] [1786022654.415992362] [serial_sendCommand_node]: TORQUE_CURVE started
+[can_ankleControl_node-4] [ERROR] [1786022654.417244557] [ankle]: 急停! 力 49.91 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[serial_sendCommand_node-3] 接收指令：68
+[serial_sendCommand_node-3] 支撑相时间：2.268001543
+[serial_sendCommand_node-3] [INFO] [1786022654.450919374] [serial_sendCommand_node]: Support Phase Three time: 0.034961453 seconds
+[serial_sendCommand_node-3] [INFO] [1786022654.450952048] [serial_sendCommand_node]: SWING_PHASE started
+[serial_sendCommand_node-3] [INFO] [1786022654.450968337] [serial_sendCommand_node]: Support Phase total: 2.268001543 seconds
+[can_ankleControl_node-4] [ERROR] [1786022654.466999776] [ankle]: 急停! 力 49.51 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022654.516950112] [ankle]: 急停! 力 49.09 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022654.566950069] [ankle]: 急停! 力 48.95 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [状态] *** 急停锁存 *** 力=48.95 kg (需重启恢复)
+[can_ankleControl_node-4] [ERROR] [1786022654.617002564] [ankle]: 急停! 力 48.93 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022654.667023886] [ankle]: 急停! 力 48.89 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022654.717072567] [ankle]: 急停! 力 48.85 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022654.767045324] [ankle]: 急停! 力 48.72 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022654.816983531] [ankle]: 急停! 力 48.49 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022654.866981570] [ankle]: 急停! 力 48.31 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022654.917077588] [ankle]: 急停! 力 48.29 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022654.966989947] [ankle]: 急停! 力 48.49 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022655.016998470] [ankle]: 急停! 力 48.80 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[serial_sendCommand_node-3] 接收指令：65
+[serial_sendCommand_node-3] 摆动相时间：0.568011436
+[serial_sendCommand_node-3] [INFO] [1786022655.018936800] [serial_sendCommand_node]: Swing Phase time: 0.568011436 seconds
+[serial_sendCommand_node-3] [INFO] [1786022655.019017574] [serial_sendCommand_node]: FULL_SUPPORT started
+[can_ankleControl_node-4] [ERROR] [1786022655.067161029] [ankle]: 急停! 力 49.10 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022655.116973662] [ankle]: 急停! 力 49.27 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022655.167269756] [ankle]: 急停! 力 49.22 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022655.216981215] [ankle]: 急停! 力 49.05 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022655.267035223] [ankle]: 急停! 力 48.86 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022655.317167501] [ankle]: 急停! 力 48.71 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022655.367159421] [ankle]: 急停! 力 48.55 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022655.417210173] [ankle]: 急停! 力 48.42 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022655.466856017] [ankle]: 急停! 力 48.36 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022655.516956250] [ankle]: 急停! 力 48.36 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022655.566795815] [ankle]: 急停! 力 48.42 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [状态] *** 急停锁存 *** 力=48.42 kg (需重启恢复)
+[can_ankleControl_node-4] [ERROR] [1786022655.616845425] [ankle]: 急停! 力 48.47 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022655.667081086] [ankle]: 急停! 力 48.48 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022655.716851071] [ankle]: 急停! 力 48.47 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022655.767097420] [ankle]: 急停! 力 48.48 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022655.817037953] [ankle]: 急停! 力 48.49 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022655.867188812] [ankle]: 急停! 力 48.50 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022655.917240219] [ankle]: 急停! 力 48.48 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022655.966862720] [ankle]: 急停! 力 48.46 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022656.017113985] [ankle]: 急停! 力 48.45 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022656.067071891] [ankle]: 急停! 力 48.47 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
+[can_ankleControl_node-4] [ERROR] [1786022656.116969204] [ankle]: 急停! 力 48.49 kg 超过硬限值 35.0 kg, 电机已锁停, 请检查系统后重启
