@@ -44,7 +44,7 @@ def generate_launch_description():
                         'preload_speed': 10.0,
                         'preload_force': 0.2,
                         'preload_force_min': 0.5,
-                        'preload_force_max': 2.0,
+                        'preload_force_max': 2.5,
                         'preload_timeout': 4.0,
                         'stand_confirm_time': 2.0,
                         'level_pitch_limit': 15.0,

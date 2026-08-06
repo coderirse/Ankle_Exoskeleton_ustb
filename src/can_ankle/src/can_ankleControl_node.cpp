@@ -2,6 +2,7 @@
 #include "can_ankle/can_ankle_node.h"
 #include <fstream>
 #include <thread>
+#include <fcntl.h>
 // controlcan.h replaced by can subprocess in header
 
 // 参数宏定义
@@ -38,7 +39,10 @@ double FF_GAIN = 15.0;           // 前馈增益: deg/s per Nm (开环速度前�
 double PRETENSION_SPEED = 60.0;  // 0x41脚跟着地预张紧收线速度 deg/s (蹬地前线已绷紧)
 double DRIVE_FORCE_CEIL = 10.0;  // 2026-08-05: 驱动阶段收线力上限 kg, 超过则禁止继续收线(只许放线)
                                  // 软限/硬限反应不过来: 实测张力可在50ms内从20冲到37kg
-double SWING_RELEASE_GAIN = 40.0; // 2026-08-05: 摆动相放线增益 deg/s per kg (张力越大放线越快, 线松自停)
+double SWING_RELEASE_GAIN = 100.0; // 2026-08-06: 摆动相放线增益 deg/s per kg (40→100, 实测40追不上快速抬脚)
+// 2026-08-06: 高张力卸力反射 — 力超软限时全速放线直到 <3kg。
+// 此前超限响应是"冻住电机", 物理上错误: 脚还在拽线时冻住会让线硬吃全部拉力直冲高限
+bool force_release = false;
 double PRETENSION_FAST_SPEED = 300.0; // 2026-08-05: 预张紧快速档 deg/s (力<1kg时全速抢收松弛)
 double MAX_SPEED = 180.0;        // 速度限幅 deg/s (替换V_max)
 float  g_force_value = 0.0;      // 原始力传感器值(/Force)
@@ -389,6 +393,9 @@ void AdaptiveSpeed(double x)
   const double c1 = 0.06345;
   const double K = 5;
   double i1 = (x - c1) / a1;
+  // 2026-08-06: 防 NaN — 测试时快速抬脚 time2 < 0.063 会使 log(负数)=NaN,
+  // NaN 经 RealPace 污染整条扭矩曲线 (实测日志出现 "final peak torque: nanNM")
+  if (i1 < 0.01) i1 = 0.01;
   double j1 = - log(i1) / b1;
   Tor.RealPace = j1; //解算实时速度
   if (0 <= Tor.RealPace && Tor.RealPace <=  6)
@@ -506,12 +513,31 @@ void torqueCallback(const std_msgs::msg::Float32::SharedPtr msg)
                  g_force_value, FORCE_EMERGENCY);
     return;
   }
-  // 力保护: 超限立即停电机回STAND
-  if (fabs(g_force_value) >= FORCE_LIMIT)
+  // 2026-08-06: 力上升速率检测 — 抬脚拽线时力以 >25kg/s 飙升,
+  // 绝对值限值(25kg)触发太晚(实测超限后仍惯性冲到37kg)。
+  // 速率触发可在 8kg 左右就识别拽线并开始卸力, 早约1个数量级。
+  // 用两个历史样本(约100ms窗口)估算, 抗单点噪声; 正常助力建力仅 ~6kg/s
+  static float f_hist[2] = {0.0f, 0.0f};   // f_hist[1]=上上帧, f_hist[0]=上一帧
+  float rise_rate = (g_force_value - f_hist[1]) * 10.0f;  // kg/s (/Force=20Hz, 2帧≈0.1s)
+  f_hist[1] = f_hist[0];
+  f_hist[0] = g_force_value;
+
+  // 力保护: 超限 → 全速放线卸力 (2026-08-06: 原"冻住电机"在脚拽线时反而把张力送过硬限)
+  if (fabs(g_force_value) >= FORCE_LIMIT ||
+      (g_force_value >= 8.0f && rise_rate >= 30.0f))
   {
+    if (!force_release)
+    {
+      force_release = true;
+      RCLCPP_WARN(rclcpp::get_logger("ankle"),
+                  "力超限/骤升! %.2f kg (速率 %.0f kg/s), 全速放线卸力", g_force_value, rise_rate);
+    }
+  }
+  else if (force_release && fabs(g_force_value) < 3.0)
+  {
+    force_release = false;
     currentDriveMode = STAND_MODE;
-    send_speed(0.0);
-    RCLCPP_WARN(rclcpp::get_logger("ankle"), "力超限! %.2f >= %.2f, 电机停止", g_force_value, FORCE_LIMIT);
+    RCLCPP_INFO(rclcpp::get_logger("ankle"), "卸力完成 (力=%.2f kg), 回站立模式", g_force_value);
   }
 }
 
@@ -923,19 +949,19 @@ double getImuPitchDeg()
 // 初始化对准:
 //   力控闭环维持力传感器在 [PRELOAD_FORCE_MIN, PRELOAD_FORCE_MAX] kg
 //   (线松→收线, 线紧→放线, 跟随脚放平自动调整)
-//   当 开关闭合(0x42) + 力在范围 + IMU水平 + 编码器在范围 全部满足
-//   并持续 STAND_CONFIRM_TIME 秒 → 初始化完成
+// 2026-08-06: 初始化确认条件简化为 [双开关闭合(0x42) 持续 STAND_CONFIRM_TIME 秒],
+// 力控闭环维持 PRELOAD_FORCE_MIN~PRELOAD_FORCE_MAX kg 全程运行;
+// 编码器/IMU 条件移除 (编码器安装角度变动会导致永远等不到)
 // 返回 false 表示被急停/关闭/超时中断
 bool runInitialAlignment(const rclcpp::Node::SharedPtr& node)
 {
     RCLCPP_INFO(node->get_logger(),
-        "初始化对准: 维持力 %.1f~%.1f kg, 等待 [开关闭合+力正常+IMU水平+编码器正常] 持续 %.1f s...",
+        "初始化对准: 力控维持 %.1f~%.1f kg, 等待 [双开关闭合] 持续 %.1f s...",
         PRELOAD_FORCE_MIN, PRELOAD_FORCE_MAX, STAND_CONFIRM_TIME);
 
     auto t_start = std::chrono::steady_clock::now();
     auto t_ok = std::chrono::steady_clock::now();
     bool all_ok_prev = false;
-    bool warned_no_imu = false;
     int status_div = 0;
 
     while (rclcpp::ok() && !emergency_stop)
@@ -960,41 +986,22 @@ bool runInitialAlignment(const rclcpp::Node::SharedPtr& node)
         else
             send_speed(0.0);
 
-        // ── 各项条件检查 ──
+        // ── 确认条件: 仅双开关闭合 ──
         bool switch_ok  = (last_switch_command == 0x42);   // 双脚开关同时闭合
-        bool force_ok   = (g_force_value >= PRELOAD_FORCE_MIN && g_force_value <= PRELOAD_FORCE_MAX);
-        bool enc_ok     = (fabs(Enc.Encoder_Value - LEVEL_ENCODER_TARGET) <= LEVEL_ENCODER_LIMIT);
 
-        double pitch_deg = 0.0;
-        bool imu_ok = true;
-        if (imu_received)
-        {
-            pitch_deg = getImuPitchDeg();
-            imu_ok = (fabs(pitch_deg) <= LEVEL_PITCH_LIMIT);
-        }
-        else if (!warned_no_imu)
-        {
-            RCLCPP_WARN(node->get_logger(), "无IMU数据, 水平检测仅使用编码器");
-            warned_no_imu = true;
-        }
-
-        bool all_ok = switch_ok && force_ok && enc_ok && imu_ok;
-
-        // ── 全条件持续时间判定 ──
-        if (all_ok)
+        // ── 持续时间判定 ──
+        if (switch_ok)
         {
             if (!all_ok_prev) { t_ok = std::chrono::steady_clock::now(); all_ok_prev = true; }
             double held = std::chrono::duration_cast<std::chrono::milliseconds>(
                 std::chrono::steady_clock::now() - t_ok).count() / 1000.0;
             if (held >= STAND_CONFIRM_TIME)
             {
-                send_speed(0.0);
                 RCLCPP_INFO(node->get_logger(),
-                    "初始化完成: force=%.2f kg, pitch=%.2f deg, encoder=%.2f deg, 稳定保持 %.1f s",
-                    g_force_value, pitch_deg, Enc.Encoder_Value, held);
+                    "初始化完成: force=%.2f kg, 开关闭合稳定保持 %.1f s",
+                    g_force_value, held);
                 printf("========================================\n");
-                printf("  初始化完成! 力=%.2f kg  俯仰=%.2f deg\n", g_force_value, pitch_deg);
-                printf("  编码器=%.2f deg  稳定保持 %.1f s\n", Enc.Encoder_Value, held);
+                printf("  初始化完成! 力=%.2f kg  开关闭合 %.1f s\n", g_force_value, held);
                 printf("========================================\n");
                 return true;
             }
@@ -1004,15 +1011,12 @@ bool runInitialAlignment(const rclcpp::Node::SharedPtr& node)
             all_ok_prev = false;
         }
 
-        // 每0.5s打印一次各条件状态, 便于现场判断卡在哪一项
+        // 每0.5s打印一次状态
         if (++status_div >= 100)
         {
             status_div = 0;
             RCLCPP_INFO(node->get_logger(),
-                "对准中: 开关[%s] 力[%s %.2f] 编码器[%s %.2f] IMU[%s %.2f]",
-                switch_ok ? "OK" : "等待", force_ok ? "OK" : "调整", g_force_value,
-                enc_ok ? "OK" : "偏差", Enc.Encoder_Value,
-                imu_received ? (imu_ok ? "OK" : "倾斜") : "无数据", pitch_deg);
+                "预紧中: 开关[%s] 力[%.2f kg]", switch_ok ? "OK" : "等待", g_force_value);
         }
 
         // 总超时保护
@@ -1020,7 +1024,6 @@ bool runInitialAlignment(const rclcpp::Node::SharedPtr& node)
             std::chrono::steady_clock::now() - t_start).count() / 1000.0;
         if (elapsed > INIT_TIMEOUT)
         {
-            send_speed(0.0);
             RCLCPP_WARN(node->get_logger(), "初始化对准超时 %.0f s, 放弃等待继续运行", INIT_TIMEOUT);
             return false;
         }
@@ -1069,7 +1072,7 @@ int main(int argc, char **argv)
   node->declare_parameter<double>("ff_gain", 15.0);
   node->declare_parameter<double>("pretension_speed", 60.0);
   node->declare_parameter<double>("drive_force_ceil", 10.0);
-  node->declare_parameter<double>("swing_release_gain", 40.0);
+  node->declare_parameter<double>("swing_release_gain", 100.0);
   node->declare_parameter<double>("pretension_fast_speed", 300.0);
   control_mode = node->get_parameter("control_mode").as_int();
   user_weight = node->get_parameter("user_weight").as_double();
@@ -1126,24 +1129,63 @@ int main(int argc, char **argv)
 
   // 2026-08-05: 手动确认闸门 — 初始化(预紧)完成后需操作者在终端按 Enter
   // 才进入主循环, 防止未准备好时步态指令误触发电机动作
+  // 2026-08-06: 等待期间预紧力控持续运行 (不再零速干等), 含看门狗保护;
+  // 终端读改用非阻塞 /dev/tty 轮询
   {
     std::cout << "========================================" << std::endl;
-    std::cout << "  预紧/初始化流程已结束, 电机保持零速待命" << std::endl;
+    std::cout << "  初始化结束, 预紧力控保持中 (0.5~2.5kg)" << std::endl;
     std::cout << "  确认穿戴就绪后, 按 Enter 进入主循环..." << std::endl;
     std::cout << "========================================" << std::endl;
-    send_speed(0.0);
-    std::string line;
-    // ros2 launch 给子进程的 stdin 是管道(按 Enter 到不了这里),
-    // 直接读控制终端 /dev/tty; 打不开(无终端环境)则退回 std::cin
-    std::ifstream tty("/dev/tty");
-    if (tty.is_open())
+
+    int ttyfd = open("/dev/tty", O_RDONLY | O_NONBLOCK);
+    if (ttyfd < 0)
+        RCLCPP_WARN(node->get_logger(), "无法打开 /dev/tty, 退回 stdin 阻塞等待 (预紧将暂停)");
+    bool confirmed = false;
+    int gate_div = 0;
+    while (rclcpp::ok() && !confirmed && !emergency_stop)
     {
-        std::getline(tty, line);
+        rclcpp::spin_some(node);
+
+        // 看门狗: 等待期间断流同样危险
+        if (forceDataFault())
+        {
+            send_speed(0.0);
+            emergency_stop = true;
+            RCLCPP_ERROR(node->get_logger(),
+                "等待确认期间力传感器数据中断! 已停止收线, 请检查传感器后重启");
+            break;
+        }
+
+        // 预紧力控保持
+        if (g_force_value < PRELOAD_FORCE_MIN)
+            sendVelocityCommand(PRELOAD_SPEED);
+        else if (g_force_value > PRELOAD_FORCE_MAX)
+            sendVelocityCommand(-PRELOAD_SPEED);
+        else
+            sendVelocityCommand(0.0);
+
+        // 非阻塞查 Enter (终端 canonical 模式, 按 Enter 后才可读)
+        if (ttyfd >= 0)
+        {
+            char buf[16];
+            if (read(ttyfd, buf, sizeof(buf)) > 0) confirmed = true;
+        }
+        else
+        {
+            std::string line;
+            std::getline(std::cin, line);
+            confirmed = true;
+        }
+
+        // 每2s打印一次等待状态
+        if (++gate_div >= 400)
+        {
+            gate_div = 0;
+            std::cout << "[等待 Enter] 预紧保持中, 力=" << g_force_value << " kg" << std::endl;
+        }
+        loop_rate.sleep();
     }
-    else
-    {
-        std::getline(std::cin, line);
-    }
+    if (ttyfd >= 0) close(ttyfd);
     RCLCPP_INFO(node->get_logger(), "操作者已确认, 进入主循环");
 
     // 丢弃闸门等待期间订阅队列里积压的过期指令 (~200ms 排水),
@@ -1190,6 +1232,11 @@ int main(int argc, char **argv)
     {
         send_speed(0.0);
         velocity_value = 0.0;   // 状态行显示真实指令
+    }
+    // 2026-08-06: 高张力卸力反射 — 优先于状态机, 全速放线直到力<3kg
+    else if (force_release)
+    {
+        sendVelocityCommand(-MAX_SPEED);
     }
     // 状态机核心
     else if (currentDriveMode == TORQUE_MODE)
@@ -1561,7 +1608,9 @@ double calculateTargetPosition()
     {
         v = -SWING_RELEASE_GAIN * g_force_value;
     }
-    return std::clamp(v, -300.0, 0.0);
+    // 2026-08-06: 放线上限放到全速 — 实测快速抬脚拽线速度>152mm/s(-300°/s),
+    // 放线追不上导致张力冲26kg
+    return std::clamp(v, V_min, 0.0);
 }
 
 //进入支撑相进行位置补偿
