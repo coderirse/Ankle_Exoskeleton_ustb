@@ -1,0 +1,2 @@
+# 1ms 控制循环需要 1000Hz FreeRTOS tick (默认100Hz下 vTaskDelay(1ms) 会变成0或10ms)
+CONFIG_FREERTOS_HZ=1000
