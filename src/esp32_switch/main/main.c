@@ -34,9 +34,23 @@
 #define PIN_LED_TOE     GPIO_NUM_7    /* 外接, 高电平点亮 */
 #define PIN_LED_BOARD   GPIO_NUM_1    /* 板载红色, 低电平点亮 */
 
-/* ── 参数 (与 STM32 版一致) ── */
-#define DEBOUNCE_MS     8             /* 8ms 消抖 */
+/* ── 参数 ── */
+#define DEBOUNCE_MS     20            /* 20ms 消抖 */
 #define HEARTBEAT_MS    50            /* 心跳周期 */
+
+/* 2026-08-10: 步态转移图过滤 — 长导线EMI爆发(~0.5s)会产生四状态循环扫掠,
+   纯时间消抖挡不住; 但爆发中的跳变(如44→43, 42→44)违反物理步态顺序, 可直接拒绝。
+   合法转移: 44→41(脚跟着地) 41→42(全掌) 42→43(跟离) 43→44(尖离), 及相邻回退 */
+static int transition_allowed(uint8_t from, uint8_t to)
+{
+    switch (from) {
+    case 0x41: return (to == 0x42 || to == 0x44);
+    case 0x42: return (to == 0x41 || to == 0x43);
+    case 0x43: return (to == 0x42 || to == 0x44);
+    case 0x44: return (to == 0x41);
+    }
+    return 0;
+}
 
 /* 板载 LED 闪烁参数 (1ms 循环计数) */
 #define BLINK_FAST_HALF_MS  100       /* 单开关: 5Hz 快闪 */
@@ -114,6 +128,8 @@ void app_main(void)
     uint8_t last_sent = to_cmd(sh, st);
     int hc = 0, tc = 0;                          /* 消抖计数 */
     uint32_t heartbeat = 0;
+    uint32_t disagree_ms = 0;                    /* 转移图不一致计时 */
+    uint32_t dwell42_ms = 0;                     /* 44→42 平放专用持续计时 */
     uint32_t ms = 0;
 
     send_cmd(last_sent);                         /* 上电立即上报当前状态 */
@@ -133,12 +149,34 @@ void app_main(void)
 
         uint8_t cmd = to_cmd(sh, st);
         if (cmd != last_sent) {
-            last_sent = cmd;
-            send_cmd(cmd);                       /* 状态变化 → 立即发送 */
-            heartbeat = 0;
-        } else if (++heartbeat >= HEARTBEAT_MS) {
-            heartbeat = 0;
-            send_cmd(last_sent);                 /* 心跳重发 */
+            /* 整脚平放时 44→42 是合法的 (双开关同时闭合), 但爆发噪声里 42 也常出现;
+               折中: 44→42 需持续 80ms 才接受 (真实平放≥200ms, 噪声段一般<50ms) */
+            if (cmd == 0x42 && last_sent == 0x44)
+                dwell42_ms++;
+            else
+                dwell42_ms = 0;
+
+            if (transition_allowed(last_sent, cmd) ||
+                (cmd == 0x42 && last_sent == 0x44 && dwell42_ms >= 80)) {
+                last_sent = cmd;
+                send_cmd(cmd);                       /* 合法状态变化 → 立即发送 */
+                heartbeat = 0;
+                disagree_ms = 0;
+            } else if (++disagree_ms > 500) {
+                /* 原始状态与输出持续不一致 500ms → 转移图可能漏了合法路径,
+                   强制重同步防锁死 */
+                last_sent = cmd;
+                send_cmd(cmd);
+                heartbeat = 0;
+                disagree_ms = 0;
+            }
+            /* 不合法跳变: 视为 EMI 噪声忽略 */
+        } else {
+            disagree_ms = 0;
+            if (++heartbeat >= HEARTBEAT_MS) {
+                heartbeat = 0;
+                send_cmd(last_sent);                 /* 心跳重发 */
+            }
         }
 
         ms++;
