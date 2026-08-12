@@ -26,6 +26,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "driver/gpio.h"
+#include "driver/usb_serial_jtag.h"
 
 /* ── 引脚 ── */
 #define PIN_HEEL        GPIO_NUM_4
@@ -69,10 +70,10 @@ static uint8_t to_cmd(int h, int t)
 
 static void send_cmd(uint8_t cmd)
 {
-    /* stdout 走 USB Serial/JTAG (原生 Type-C 口).
-       协议字节为 0x41~0x44, 不含 \n, 不受换行转换影响 */
-    fwrite(&cmd, 1, 1, stdout);
-    fflush(stdout);
+    /* 2026-08-12: 绕过 stdio 直写 USB Serial/JTAG 驱动。
+       stdout/vfs 路径会把单字节攒到 128B 缓冲满才上送 (实测心跳成批延迟到达),
+       驱动直写立即进 USB FIFO 随主机轮询发出 */
+    usb_serial_jtag_write_bytes(&cmd, 1, 0);
 }
 
 static void gpio_setup(void)
@@ -122,6 +123,10 @@ static void board_led_update(uint8_t cmd, uint32_t ms)
 
 void app_main(void)
 {
+    /* 2026-08-12: 安装 USB Serial/JTAG 驱动 — 控制台走的是 ROM 级打印,
+       vfs 驱动并未安装, 不装直接 write_bytes 会报 "driver is not initialized" */
+    usb_serial_jtag_driver_config_t usj_cfg = USB_SERIAL_JTAG_DRIVER_CONFIG_DEFAULT();
+    usb_serial_jtag_driver_install(&usj_cfg);
     gpio_setup();
 
     int sh = rd_heel(), st = rd_toe();          /* 消抖后的稳定状态 */
