@@ -51,7 +51,7 @@ def generate_launch_description():
                         'level_encoder_target': -22.14,
                         'level_encoder_limit': 10.0,
                         'init_timeout': 30.0,
-                        'ff_gain': 15.0,
+                        'ff_gain': 25.0,
                         'pretension_speed': 60.0,
                         'drive_force_ceil': 22.0,
                         'max_speed': 600.0,
