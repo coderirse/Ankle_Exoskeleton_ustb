@@ -1,10 +1,10 @@
 # 踝关节外骨骼 USB 设备持久化映射
 # 安装: sudo cp scripts/99-ankle.rules /etc/udev/rules.d/ && sudo udevadm control --reload-rules && sudo udevadm trigger
 #
-# 当前拓扑（2026-08-10 更新：足底开关升级为 ESP32-S3，编码器/IMU 暂不接入）：
+# 当前拓扑（2026-08-10 再更新：编码器插回，hub 端口 6.1）：
 #   /dev/ankle_switch  -> ESP32-S3 原生 USB (303a:1001, esp32_switch 固件心跳)
+#   /dev/ankle_encoder -> USB path 1-6.1 (CH340, 编码器 Modbus 9600)
 #   /dev/ankle_force   -> USB path 1-6.4 (CH340, 力传感器 Modbus 19200)
-#   /dev/ankle_encoder -> USB path 1-6.3 (CH340, 编码器 Modbus 9600, 暂未接入待确认)
 #   /dev/ankle_can     -> CANalyst-II (04d8:0053)
 #   IMU                -> /dev/ttyACM* (1a86:55d4, fdilink, 暂未接入)
 
@@ -14,8 +14,8 @@ SUBSYSTEM=="usb", ATTR{idVendor}=="04d8", ATTR{idProduct}=="0053", MODE="0660", 
 # 足底开关 ESP32-S3 (原生 USB, VID/PID 唯一, 换口也能识别)
 SUBSYSTEM=="tty", ATTRS{idVendor}=="303a", ATTRS{idProduct}=="1001", SYMLINK+="ankle_switch"
 
-# 编码器 (CH340, USB hub 1-6 port 3, 当前未接入, 路径待启用时确认)
-SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", ENV{ID_PATH_TAG}=="pci-0000_00_14_0-usb-0_6_3_1_0", SYMLINK+="ankle_encoder"
+# 编码器 (CH340, USB hub 1-6 port 1)
+SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", ENV{ID_PATH_TAG}=="pci-0000_00_14_0-usb-0_6_1_1_0", SYMLINK+="ankle_encoder"
 
 # 力传感器 (CH340, USB hub 1-6 port 4)
 SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", ENV{ID_PATH_TAG}=="pci-0000_00_14_0-usb-0_6_4_1_0", SYMLINK+="ankle_force"
