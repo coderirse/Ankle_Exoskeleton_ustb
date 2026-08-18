@@ -305,9 +305,11 @@ struct PIDController
 
     void resetIntegral() 
     {
-      if (!TORQUE_MODE)
+      // 2026-08-12 修复(审查Bug1): 原为 if(!TORQUE_MODE) — TORQUE_MODE是枚举值1,
+      // !1恒false, 积分永不重置。意图是"非驱动状态时清零积分"
+      if (currentDriveMode != TORQUE_DRIVE_MODE)
       {
-        integral = 0.0;  // 模式切换时重置积分项
+        integral = 0.0;
       }  
     }
     void updateParamsBasedOnSpeed(double speed) 
@@ -452,7 +454,7 @@ void AdaptiveSpeed(double x)
 // 退出归零函数
 void processHoming() 
 {
-    bool is_homing = false;
+    static bool is_homing = false;   // 2026-08-12 修复(审查Bug3): 原为栈变量, 防重入失效
     if (ST.need_homing && !is_homing) 
     {
         is_homing = true;
@@ -635,12 +637,13 @@ void updateCompensateTorque()
 }
 
 // 站立模式函数
-void StandSafty()
+void StandSafty()  // 拼写沿用原代码 (StandSafety)
 {
   if(timer.time2 > 5)
   {
     currentDriveMode = STAND_MODE;
-    signal(SIGINT, signalHandler);
+    // 2026-08-12 修复(审查Bug4): 删除此处的 signal(SIGINT, signalHandler) 调用
+    // (信号注册应只在 main 中做一次, 控制函数里反复注册属于误用)
   }
   else
   {
@@ -680,6 +683,63 @@ void send_speed(double deg_s)
                  (BYTE)(uu & 0xFF), (BYTE)((uu >> 8) & 0xFF),
                  (BYTE)((uu >> 16) & 0xFF), (BYTE)((uu >> 24) & 0xFF)};
     SendData(config_node, 0x00000653, d);
+}
+
+// 2026-08-12: SDO 同步读取 (响应由接收线程捕获到 sdo_resp_data, 校验回显索引)
+int32_t sdo_read_sync(uint16_t index, uint8_t sub, bool* ok)
+{
+    for (int attempt = 0; attempt < 3; attempt++)
+    {
+        sdo_resp_ready = false;
+        BYTE req[8] = {0x40, (BYTE)(index & 0xFF), (BYTE)(index >> 8), sub, 0, 0, 0, 0};
+        SendData(config_node, 0x00000653, req);
+        for (int i = 0; i < 50; i++)   // 最多等100ms
+        {
+            if (sdo_resp_ready)
+            {
+                if (sdo_resp_data[1] == (index & 0xFF) &&
+                    sdo_resp_data[2] == (index >> 8) && sdo_resp_data[3] == sub)
+                {
+                    uint8_t cmd = sdo_resp_data[0];
+                    int nbytes = (cmd == 0x43) ? 4 : (cmd == 0x4B) ? 2 : (cmd == 0x4F) ? 1 : 4;
+                    int32_t val = 0;
+                    memcpy(&val, (const void*)&sdo_resp_data[4], nbytes);
+                    if (cmd == 0x4B) val = (int16_t)(val & 0xFFFF);
+                    if (cmd == 0x4F) val = (int8_t)(val & 0xFF);
+                    *ok = true;
+                    return val;
+                }
+                sdo_resp_ready = false;   // 错帧, 继续等
+            }
+            usleep(2000);
+        }
+    }
+    *ok = false;
+    return 0;
+}
+
+// 2026-08-12: 驱动器故障检测 (6041 状态字 bit3)
+// 实测: 大速度指令+堵转触发 0x0602 跟随误差故障, 驱动器锁存后无视一切指令
+bool motor_faulted()
+{
+    bool ok = false;
+    int32_t sw = sdo_read_sync(0x6041, 0x00, &ok);
+    return ok && (sw & 0x08);
+}
+
+// 2026-08-12: 故障复位 (6040 bit7) + 重新使能 + 恢复PV模式
+void motor_fault_reset()
+{
+    BYTE rst[8]      = {0x2B, 0x40, 0x60, 0x00, 0x80, 0x00, 0x00, 0x00};
+    BYTE shutdown[8] = {0x2B, 0x40, 0x60, 0x00, 0x06, 0x00, 0x00, 0x00};
+    BYTE swon[8]     = {0x2B, 0x40, 0x60, 0x00, 0x07, 0x00, 0x00, 0x00};
+    BYTE enable[8]   = {0x2B, 0x40, 0x60, 0x00, 0x0F, 0x00, 0x00, 0x00};
+    BYTE set_pv[8]   = {0x2F, 0x60, 0x60, 0x00, 0x03, 0x00, 0x00, 0x00};
+    SendData(config_node, 0x00000653, rst);      usleep(300000);
+    SendData(config_node, 0x00000653, shutdown); usleep(100000);
+    SendData(config_node, 0x00000653, swon);     usleep(100000);
+    SendData(config_node, 0x00000653, enable);   usleep(100000);
+    SendData(config_node, 0x00000653, set_pv);
 }
 
 //发送扭矩跟踪转换电机速度指令函数
@@ -830,17 +890,13 @@ bool checkCommandSequence(uint8_t currentCommand)
 }
 
 //脚底开关指令接收函数
+// 2026-08-12: 模式切换已改由 switchStateCallback 按原始开关状态驱动,
+// /command_topic 经过串口节点严格顺序校验会丢失 42→41→44 这类非标准序列,
+// 此处不再驱动模式, 仅保留 lastCommand 供顺序校验重同步
 void commandCallback(const std_msgs::msg::UInt8::SharedPtr msg)
 {
     uint8_t command = msg->data;
-
-    // 2026-08-05: 闸门排水期间丢弃指令
     if (ignore_commands) return;
-
-    // 2026-08-05: 顺序错误不再触发归零 — 归零以开机时关节角度为目标,
-    // 穿戴行走时关节由人主导永远回不去, 会把主循环卡死 (实测电机因此全程无反应)。
-    // 改为回站立模式并重新同步: lastCommand 清零后下一条指令按首条处理,
-    // 步态随下一个 0x41 自动恢复
     if(!checkCommandSequence(command))
     {
         currentDriveMode = STAND_MODE;
@@ -848,23 +904,54 @@ void commandCallback(const std_msgs::msg::UInt8::SharedPtr msg)
         RCLCPP_WARN(rclcpp::get_logger("ankle"), "指令顺序错误, 回站立模式等待重新同步 (下一个0x41恢复)");
         return;
     }
-    
-    switch (command) 
+    lastCommand = command;
+}
+
+//开关原始状态回调 (2026-08-03): /switch_state 心跳话题
+// 2026-08-12: 步态模式切换改由此驱动 — 串口节点严格顺序(41→42→43→44)
+// 会丢弃实测步态 (用户前掌开关先释放, 序列是 42→41→44, 0x43 基本不出现),
+// 改为按原始状态转移驱动, 兼容两种离地顺序:
+//   蹬地触发 = 42→43 (经典跟离) 或 42→41 (前掌先离)
+//   摆动触发 = 任意支撑态→44
+void switchStateCallback(const std_msgs::msg::UInt8::SharedPtr msg)
+{
+    uint8_t state = msg->data;
+    if (state == last_switch_command) return;
+    uint8_t prev = last_switch_command;
+    last_switch_command = state;
+    last_switch_time = std::chrono::steady_clock::now();
+
+    if (emergency_stop || force_release) return;   // 保护状态下不切换模式
+
+    switch (state)
     {
       case 0x41:
-        currentDriveMode = TORQUE_MODE;
+        if (prev == 0x42)
+        {
+            // 全掌→仅脚跟: 前掌先离, 视作蹬地 (同 0x43 路径)
+            Enc.initialMotorPosition_counter++;
+            StandSafty();
+            timer.startNewTiming();
+        }
+        else
+        {
+            // 摆动/其他→脚跟: 脚跟着地, 预张紧
+            currentDriveMode = TORQUE_MODE;
+        }
         break;
       case 0x42:
         storeSlope();
         currentDriveMode = PRE_TORQUE_MODE;
         break;
       case 0x43:
+        // 全掌→仅前掌: 经典脚跟离地蹬地
         Enc.initialMotorPosition_counter++;
         StandSafty();
         timer.startNewTiming();
         break;
       case 0x44:
-        if(ST.isForward)
+        // 支撑态→双开: 摆动相
+        if (ST.isForward)
         {
             pendingCommand = 0x44;
         }
@@ -873,19 +960,6 @@ void commandCallback(const std_msgs::msg::UInt8::SharedPtr msg)
             currentDriveMode = VELOCITY_MODE;
         }
         break;
-    }
-    lastCommand = command;
-}
-
-//开关原始状态回调 (2026-08-03): /switch_state 心跳话题,
-//初始化站立确认用, 不受步态顺序校验影响
-void switchStateCallback(const std_msgs::msg::UInt8::SharedPtr msg)
-{
-    uint8_t state = msg->data;
-    if (state != last_switch_command)
-    {
-        last_switch_command = state;
-        last_switch_time = std::chrono::steady_clock::now();
     }
 }
 
@@ -906,14 +980,9 @@ double updateTorquePeak()
     double RealSwingTime = timer.time4;
     double a = RealSwingTime - timer.TheorSwingTime;
     // 动态调整扭矩
-    if (a > 0) 
-    {
-        step = (RealSwingTime - timer.TheorSwingTime) * Tor.RealPace * 5;
-    } 
-    else 
-    {
-        step = (RealSwingTime - timer.TheorSwingTime) * Tor.RealPace * 5;
-    }
+    // 注: 原 if(a>0)/else 两分支完全相同 (ROS1 遗留, 审查Bug2), 行为不变地合并
+    (void)a;
+    step = (RealSwingTime - timer.TheorSwingTime) * Tor.RealPace * 5;
     Tor.TARGET_TORQUE_FLOAT = step;
     Tor.TARGET_TORQUE_FLOAT = std::clamp(Tor.TARGET_TORQUE_FLOAT , -5.0 , 5.0);
     Tor.TARGET_TORQUE_PEAK = Tor.TARGET_TORQUE_BASE + Tor.TARGET_TORQUE_EXT + Tor.TARGET_TORQUE_ASSIST + Tor.TARGET_TORQUE_FLOAT;
@@ -1117,8 +1186,29 @@ int main(int argc, char **argv)
 
   //初始化can节点 (TCP连接can_bridge.py, 已完成使能)
   Init_Can();
-  // 注: 该驱动器 CAN 协议为只写 (无 SDO 响应帧), 无法读回参数;
-  // 轮廓加减速已在 can_init() 中显式设置为 50000 (与 motor_remote.py 一致)
+
+  // 2026-08-12: 启动时驱动器故障检测 — 驱动器可经 SDO(0x5D3)读取
+  // (此前误判为只写协议)。大速度+堵转会触发跟随误差故障锁存,
+  // 锁存后驱动器无视一切指令 (2026-08-12 实测"电机一点都不动"的根因)
+  {
+    bool ok = false;
+    int32_t sw = sdo_read_sync(0x6041, 0x00, &ok);
+    if (ok)
+    {
+      RCLCPP_INFO(node->get_logger(), "驱动器状态字=0x%04X fault=%d", (uint16_t)sw, (sw >> 3) & 1);
+      if (sw & 0x08)
+      {
+        RCLCPP_WARN(node->get_logger(), "驱动器处于故障锁存状态, 执行故障复位...");
+        motor_fault_reset();
+        sw = sdo_read_sync(0x6041, 0x00, &ok);
+        RCLCPP_INFO(node->get_logger(), "复位后状态字=0x%04X", ok ? (uint16_t)sw : 0);
+      }
+    }
+    else
+    {
+      RCLCPP_WARN(node->get_logger(), "驱动器状态字读取失败 (SDO无响应)");
+    }
+  }
 
   // 2026-08-03: 初始化对准 — 力控维持0.5~2.0kg随脚放平收放线,
   // 开关闭合+力正常+IMU水平+编码器正常 全部满足持续2s后初始化完毕
@@ -1346,7 +1436,9 @@ int main(int argc, char **argv)
       ST.initialMotorRecorded = false;
       ST.slope_store = false;
       ST.recorded = true;
-      rclcpp::sleep_for(std::chrono::milliseconds((int)(0.015*1000)));
+      // 2026-08-12 修复(审查4.3): 删除此处的 rclcpp::sleep_for(15ms) —
+      // 它会阻塞主线程, 期间力回调/急停/看门狗全部暂停 (实测摆动相是拽线高发段,
+      // 最需要保护)。loop_rate 已保证 200Hz 节拍
       y = calculateTargetPosition();
       sendVelocityCommand(y);
     }
@@ -1362,6 +1454,14 @@ int main(int argc, char **argv)
     torque_msg.return_velocity = Output_VelocityValue;
     torque_msg.return_torque_value = Output_TorqueValue;
     torque_pub->publish(torque_msg);
+    // 2026-08-12: 每3s驱动器故障巡检 — 故障锁存后驱动器无视指令,
+    // 自动复位恢复, 避免"电机无声无息死掉"
+    if (loop_count % 600 == 3 && motor_faulted())
+    {
+      RCLCPP_ERROR(node->get_logger(), "驱动器故障锁存! 自动执行故障复位并重新使能");
+      send_speed(0.0);
+      motor_fault_reset();
+    }
     if (++loop_count % 200 == 1) { // 每秒打印一次状态, 便于操作者在终端观察
       // 2026-08-05: 可读状态行 (模式中文名 + 力 + 速度指令), 替代原 mode 数字
       static const char* mode_names[] = {"摆动相", "预张紧", "全掌支撑", "蹬地助力", "站立"};

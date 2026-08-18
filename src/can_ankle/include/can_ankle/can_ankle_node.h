@@ -209,8 +209,8 @@ inline void *receive_func(void *param) {
         // 主线程 can_send 几乎永远抢不到 can_mutex → 主循环被饿死 (实测跌至 2.5Hz)
         int len = can_recv(&id, data, 0);
         if (len <= 0) { usleep(1000); continue; }
-        // 2026-08-05: 捕获 SDO 响应 (0x580+0x53), 供启动自诊断读取驱动器参数
-        if (id == 0x00000583 && len >= 8) {
+        // 2026-08-05: 捕获 SDO 响应 (0x580+0x53=0x5D3), 供启动自诊断/故障检测读取驱动器参数
+        if (id == 0x000005D3 && len >= 8) {
             memcpy((void*)sdo_resp_data, data, 8);
             sdo_resp_ready = true;
             continue;
