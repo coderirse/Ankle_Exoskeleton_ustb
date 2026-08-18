@@ -21,7 +21,7 @@ std::ofstream slope_file;
 
 // 2026-07-29 台架参数 (由ROS参数覆盖)
 double MOTOR_DIR = 1.0;          // 电机方向: +1收线拉紧, -1放线
-double FORCE_LIMIT = 5.0;        // 力限值(/Force尺度, 超限立即停)
+double FORCE_LIMIT = 15.0;        // 力限值(/Force尺度, 超限立即停)
 double FORCE_EMERGENCY = 35.0;   // 力传感器硬限值 kg, 超限急停锁存(防鲍登线绷断)
 double TORQUE_PER_FORCE = 6.0;   // Nm per /Force单位 (台架杠杆比标定)
 double FORCE_SIGN = 1.0;         // 力传感器符号: 使紧线读数为正 (+1/-1)
@@ -532,7 +532,7 @@ void torqueCallback(const std_msgs::msg::Float32::SharedPtr msg)
 
   // 力保护: 超限 → 全速放线卸力 (2026-08-06: 原"冻住电机"在脚拽线时反而把张力送过硬限)
   if (fabs(g_force_value) >= FORCE_LIMIT ||
-      (g_force_value >= 8.0f && rise_rate >= 30.0f))
+      (g_force_value >= 20.0f && rise_rate >= 30.0f))
   {
     if (!force_release)
     {
@@ -678,7 +678,7 @@ vector<uint8_t> speed_to_command(double speed)
 double SPEED_UU_PER_DEG_S = 364.0;
 void send_speed(double deg_s)
 {
-    int32_t uu = (int32_t)(deg_s * MOTOR_DIR * SPEED_UU_PER_DEG_S);
+    int32_t uu = (int32_t)(deg_s * MOTOR_DIR * SPEED_UU_PER_DEG_S)*0.5f;
     BYTE d[8] = {0x23, 0xFF, 0x60, 0x00,
                  (BYTE)(uu & 0xFF), (BYTE)((uu >> 8) & 0xFF),
                  (BYTE)((uu >> 16) & 0xFF), (BYTE)((uu >> 24) & 0xFF)};
@@ -1132,7 +1132,7 @@ int main(int argc, char **argv)
   // 2026-07-29: 用ROS参数替代cin交互输入
   node->declare_parameter<int>("control_mode", 1);
   node->declare_parameter<double>("user_weight", 60.0);
-  node->declare_parameter<double>("force_limit", 5.0);
+  node->declare_parameter<double>("force_limit", 15.0);
   node->declare_parameter<double>("torque_per_force", 6.0);
   node->declare_parameter<double>("force_sign", 1.0);
   node->declare_parameter<double>("motor_dir", 1.0);
